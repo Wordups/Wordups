@@ -10,20 +10,27 @@ I'm a tech enthusiast with a passion for cybersecurity, IT operations, and explo
 
 Here are some highlights from my portfolio:
 
-1. **Mobile Device Security Assessment Tool**
-   - Description: Developed a tool to assess the security posture of mobile devices within an organization. The tool scans devices for vulnerabilities, compliance with security policies, and potential threats.
-   - Technologies Used: Python, MobileIron API
-   - [Link to the project repository](https://github.com/BrianWord/mobile-security-tool)
+Here are some highlights from my portfolio:
 
-2. **Mobile Device Management Dashboard**
+1. **Mobile Device Management Dashboard**
    - Description: Developed a web-based dashboard for managing and monitoring mobile devices using MobileIron. The dashboard provides insights into device compliance, security policies, and device health.
    - Technologies Used: HTML, CSS, JavaScript, MobileIron API
    - [Link to the project repository](https://github.com/BrianWord/mdm-dashboard)
+
+2. **Incident Response Playbook Generator**
+   - Description: Developed a web-based application that allows security professionals to generate customized incident response playbooks for various security incidents. Users can select from a library of predefined incident types and specify their organization's specific procedures, contacts, and escalation paths.
+   - Technologies Used: React.js, Node.js, MongoDB, PDF generation libraries
+   - [Link to the project repository](https://github.com/BrianWord/incident-response-playbook-generator)
 
 3. **Security Incident Response Automation**
    - Description: Built a script to automate the process of security incident response, including alert triage, investigation, and remediation. Integrated with Splunk for log analysis and orchestration.
    - Technologies Used: Python, Splunk
    - [Link to the project repository](https://github.com/BrianWord/security-incident-automation)
+
+4. **Security Training Platform**
+   - Description: Created an interactive platform for cybersecurity training and awareness, aimed at educating employees and individuals about various security threats and best practices. The platform includes modules on phishing awareness, secure coding practices, incident response simulations, and other relevant topics.
+   - Technologies Used: Angular, Node.js, MySQL, Gamification libraries
+   - [Link to the project repository](https://github.com/BrianWord/security-training-platform)
 
 ## Skills
 
