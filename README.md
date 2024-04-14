@@ -1,7 +1,7 @@
 - 👋 Hi, I’m @Wordups
 - 👀 I’m interested in ... Security,MDM and different challenges
 - 🌱 I’m currently learning Splunk and Python
-- 💞️ I’m looking to collaborate on Mobile Device Management Implimentation 
+- 💞️ In a space where I have a plan and will execute. Will update 6/24 on if my immediate goals were achieved or pushed back. 
 - 📫 How to reach me on X @B1word
 
 <!---
