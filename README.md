@@ -1,47 +1,48 @@
-# Brian Word's GitHub Portfolio
-
+Brian Word's GitHub Portfolio
 👋 Hi there, I'm Brian Word! Welcome to my GitHub portfolio.
 
-## About Me
+About Me
+I'm a cybersecurity professional with over 10 years of experience specializing in compliance, risk assessments, and mobile device management (MDM). My expertise includes designing and implementing enterprise-grade security solutions, managing cross-platform device ecosystems, and optimizing endpoint security for on-premises and remote environments. I have developed over 50 policies for HealthPlan Services, including leading a comprehensive game plan for Incident Response and Disaster Recovery. My hands-on experience includes tools like Microsoft Intune, MobileIron, JAMF Pro, Splunk, and Tanium, as well as aligning policies with NIST, PCI, and HITRUST standards.
 
-I'm a tech enthusiast with a passion for cybersecurity, IT operations, and exploring new technologies. With a background in Information Technology and certifications in CompTIA Security+ and Google Cybersecurity Professional, I have hands-on experience in managing mobile device ecosystems, implementing security protocols, and optimizing IT operations.
+Projects
+JAMF Pro Implementation Portfolio
 
-## Projects
+Description: Documented the end-to-end implementation of JAMF Pro for secure device management, including sourcing, testing, and deploying Apple devices for remote work. Features automation scripts, configuration profiles, and detailed workflows.
+Technologies Used: JAMF Pro, Bash scripting, macOS/iOS, Apple Business Manager.
+Link to the project repository
+Policy Development and Compliance Frameworks
 
-Here are some highlights from my portfolio:
+Description: Showcase of over 50 policies developed to ensure compliance with NIST, PCI, and HITRUST standards. Includes documentation for Incident Response, Disaster Recovery, and security protocols for endpoint protection.
+Technologies Used: Microsoft Intune, MobileIron, Splunk, Tanium.
+Link to the project repository
+Mobile Device Management with Intune
 
-Here are some highlights from my portfolio:
+Description: Demonstrated the use of Microsoft Intune to deploy security policies, manage devices, and ensure compliance for a workforce of 1,000+ users. Includes configuration policies and enrollment automation.
+Technologies Used: Microsoft Intune, PowerShell scripting, Windows/macOS/iOS devices.
+Link to the project repository
+Security Incident Response Automation
 
-1. **Mobile Device Management Dashboard**
-   - Description: Developed a web-based dashboard for managing and monitoring mobile devices using MobileIron. The dashboard provides insights into device compliance, security policies, and device health.
-   - Technologies Used: HTML, CSS, JavaScript, MobileIron API
-   - [Link to the project repository](https://github.com/BrianWord/mdm-dashboard)
+Description: Created a Python-based script to automate security incident response workflows, integrating log analysis from Splunk to triage alerts and initiate remediation processes.
+Technologies Used: Python, Splunk.
+Link to the project repository
+Skills
+Policy Development and Compliance:
+Developed 50+ policies for Incident Response, Disaster Recovery, and compliance with NIST, PCI, HITRUST.
+Created comprehensive game plans for organizational preparedness and resilience.
+Mobile Device Management (MDM):
+Microsoft Intune
+MobileIron
+JAMF Pro
+Apple Business Manager
+Endpoint Security:
+Splunk
+Tanium
+Qualys
+Programming and Automation:
+Python
+Bash scripting
+Contact Me
+📫 Reach out to me at word.brian1@gmail.com or connect with me on LinkedIn.
 
-2. **Incident Response Playbook Generator**
-   - Description: Developed a web-based application that allows security professionals to generate customized incident response playbooks for various security incidents. Users can select from a library of predefined incident types and specify their organization's specific procedures, contacts, and escalation paths.
-   - Technologies Used: React.js, Node.js, MongoDB, PDF generation libraries
-   - [Link to the project repository](https://github.com/BrianWord/incident-response-playbook-generator)
+I'm open to new opportunities and collaborations. Let’s connect and create impactful solutions!
 
-3. **Security Incident Response Automation**
-   - Description: Built a script to automate the process of security incident response, including alert triage, investigation, and remediation. Integrated with Splunk for log analysis and orchestration.
-   - Technologies Used: Python, Splunk
-   - [Link to the project repository](https://github.com/BrianWord/security-incident-automation)
-
-4. **Security Training Platform**
-   - Description: Created an interactive platform for cybersecurity training and awareness, aimed at educating employees and individuals about various security threats and best practices. The platform includes modules on phishing awareness, secure coding practices, incident response simulations, and other relevant topics.
-   - Technologies Used: Angular, Node.js, MySQL, Gamification libraries
-   - [Link to the project repository](https://github.com/BrianWord/security-training-platform)
-
-## Skills
-
-- Cybersecurity
-- Mobile Device Management (MDM)
-- Python
-- Splunk
-- HTML/CSS/JavaScript
-
-## Contact Me
-
-📫 Feel free to reach out to me at [word.brian1@gmail.com](mailto:word.brian1@gmail.com) or connect with me on [LinkedIn](https://www.linkedin.com/in/Brian-Word).
-
-I'm always open to new opportunities and collaborations. Let's connect and make something awesome together!
