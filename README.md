@@ -26,6 +26,9 @@
 
 [linkedin]: https://linkedin.com/in/yourlinkedinprofile
 [github]: https://github.com/Wordups/Wordups
+## 🎓 Certifications
+
+You can view my certifications in the [Certifications Repository](https://github.com/Wordups/Certifications) or on [Credly](https://www.credly.com/users/brian-word.df252e4d).
 
 ---
 
