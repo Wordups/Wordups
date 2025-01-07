@@ -49,4 +49,4 @@ You can view my certifications in the [Certifications Repository](https://github
 
 <h2>⚡ Fun Fact</h2>
 
-I was named **NJCAA National Basketball Player of the Year (2010)**! [Read more here.](https://www.njcaa.org/sports/mbkb/2009-10/releases/2010-04-12_11171.html)![image](https://github.com/user-attachments/assets/23b1b204-028c-49d0-86c1-5d171bc8c448)
+I was named **NJCAA National Basketball Player of the Year (2010)**! [Read more here.](https://www.njcaa.org/sports/mbkb/2009-10/releases/2010-04-12_11171.html)
