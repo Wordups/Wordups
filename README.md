@@ -12,18 +12,19 @@
 📱 Intune iOS Device Management Project
 Repository: Intune iOS Device Management
 
-Overview
-This project showcases my expertise in configuring and managing iOS devices using Microsoft Intune. It highlights:
 
-Device enrollment for corporate and BYOD scenarios.
-Compliance policy creation for passcode complexity and app restrictions.
-Deployment and validation of essential apps (e.g., Kith, YouTube Kids, GitHub).
-Troubleshooting MDM authority issues and license configurations.
-Automation of compliance reporting with PowerShell.
-Key Highlights
-Resolved challenges with MDM Authority and tenant configuration.
-Successfully enrolled devices and ensured compliance with security policies.
-Demonstrated zero-touch app deployment and real-time policy enforcement.
+- This project showcases my expertise in configuring and managing iOS devices using Microsoft Intune. It highlights:
+-https://github.com/Wordups/Intune-iOS-Device-Management
+-Device enrollment for corporate and BYOD scenarios.
+-Compliance policy creation for passcode complexity and app restrictions.
+-Deployment and validation of essential apps (e.g., Kith, YouTube Kids, GitHub).
+-Troubleshooting MDM authority issues and license configurations.
+-Automation of compliance reporting with PowerShell.
+-Key Highlights
+-Resolved challenges with MDM Authority and tenant configuration.
+-Successfully enrolled devices and ensured compliance with security policies.
+-Demonstrated zero-touch app deployment and real-time policy enforcement.
+
 - <b>Cybersecurity Playbook</b>
   - [Incident Response Plan Aligned with NIST Standards](https://github.com/Wordups/Incident-Response-NIST)  
     *"Incident response plan based on NIST standards for detecting, mitigating, and recovering from cybersecurity incidents."*
