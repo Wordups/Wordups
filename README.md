@@ -13,8 +13,9 @@
 Repository: Intune iOS Device Management
 
 
-- This project showcases my expertise in configuring and managing iOS devices using Microsoft Intune. It highlights:
--https://github.com/Wordups/Intune-iOS-Device-Management
+- This project showcases my expertise in configuring and managing iOS devices using Microsoft Intune.
+- https://github.com/Wordups/Intune-iOS-Device-Management
+- It highlights:
 -Device enrollment for corporate and BYOD scenarios.
 -Compliance policy creation for passcode complexity and app restrictions.
 -Deployment and validation of essential apps (e.g., Kith, YouTube Kids, GitHub).
