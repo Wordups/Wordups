@@ -12,25 +12,11 @@
                 <em>"Configuration and enforcement of compliance policies in Microsoft Intune to ensure secure and compliant device management."</em>
             </li>
             <li><a href="https://github.com/Wordups/Intune-Compliance-Scripts">PowerShell Scripts for Intune Compliance Reporting</a>: 
-                <em>"PowerShell scripts for automating compliance reporting and policy enforcement in Microsoft Intune."</em>
+                <em>"Automating compliance reporting and policy enforcement in Microsoft Intune."</em>
             </li>
-        </ul>
-    </li>
-    <li>
-        <b>Intune iOS Device Management Project</b>  
-        <a href="https://github.com/Wordups/Intune-iOS-Device-Management">View Repository</a>  
-        <ul>
-            <li>Device enrollment for corporate and BYOD scenarios</li>
-            <li>Compliance policy creation for passcode complexity and app restrictions</li>
-            <li>Deployment and validation of essential apps (e.g., Kith, YouTube Kids, GitHub)</li>
-            <li>Troubleshooting MDM authority issues and license configurations</li>
-            <li>Automation of compliance reporting with PowerShell</li>
-        </ul>
-        <b>Key Highlights:</b>
-        <ul>
-            <li>Resolved challenges with MDM Authority and tenant configuration</li>
-            <li>Successfully enrolled devices and ensured compliance with security policies</li>
-            <li>Demonstrated zero-touch app deployment and real-time policy enforcement</li>
+            <li><a href="https://github.com/Wordups/Intune-iOS-Device-Management">Intune iOS Device Management Project</a>: 
+                <em>"Comprehensive project covering iOS device enrollment, compliance policy creation, and automation with PowerShell."</em>
+            </li>
         </ul>
     </li>
     <li>
