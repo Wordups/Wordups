@@ -11,9 +11,6 @@
             <li><a href="https://github.com/Wordups/Intune-Compliance">Intune Compliance Policy Configurations</a>: 
                 <em>"Configuration and enforcement of compliance policies in Microsoft Intune to ensure secure and compliant device management."</em>
             </li>
-            <li><a href="https://github.com/Wordups/Intune-Compliance-Scripts">PowerShell Scripts for Intune Compliance Reporting</a>: 
-                <em>"Automating compliance reporting and policy enforcement in Microsoft Intune."</em>
-            </li>
             <li><a href="https://github.com/Wordups/Intune-iOS-Device-Management">Intune iOS Device Management Project</a>: 
                 <em>"Comprehensive project covering iOS device enrollment, compliance policy creation, and automation with PowerShell."</em>
             </li>
@@ -63,3 +60,4 @@
 
 <h2>⚡ Fun Fact</h2>
 <p>I was named <b>NJCAA National Basketball Player of the Year (2010)</b>! <a href="https://www.njcaa.org/sports/mbkb/2009-10/releases/2010-04-12_11171.html">Read more here.</a></p>
+
