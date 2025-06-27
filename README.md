@@ -39,7 +39,7 @@
 
 <h2>📈 Skills and Expertise</h2>
 <ul>
-    <li><b>MDM Solutions:</b> Microsoft Intune, JAMF Pro, Apple Business Manager</li>
+    <li><b>MDM Solutions:</b> Microsoft Intune, Workspaceone, JAMF Pro, Apple Business Manager</li>
     <li><b>Cybersecurity:</b> NIST, HITRUST, PCI-DSS Compliance, Incident Response</li>
     <li><b>Automation:</b> PowerShell, Postman API Workflows, Compliance Reporting</li>
     <li><b>Tools and Platforms:</b> Palo Alto Networks, Tanium, MobileIron, VMware Horizon®</li>
