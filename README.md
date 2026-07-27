@@ -1,97 +1,105 @@
-# Hi, I'm Brian Word 👋
+# Brian Word
 
-### Security Operations Lead | SOC Architect | GRC Practitioner
-📍 Baltimore, MD &nbsp;|&nbsp; 🔐 HIPAA · PCI DSS · HITRUST
+**Security Engineer | SOC Automation | AI Governance | Operational Systems**
 
-I build and operate enterprise security programs — from live XQL dashboards and SOC playbooks to policy governance frameworks and GRC audit documentation. My work spans detection engineering, threat hunting, incident response, and the operational infrastructure that holds a SOC together.
+Baltimore, Maryland  
+[LinkedIn](https://www.linkedin.com/in/brianword) · [GitHub](https://github.com/Wordups)
 
-Currently leading security operations at HealthPlan Services (HPS), a Wipro company, where I built the SOC governance framework from the ground up on Palo Alto Cortex XSIAM.
+I am a security and systems engineer with more than a decade of experience across enterprise support, identity operations, endpoint engineering, healthcare mobility, security operations, policy governance, and audit readiness.
+
+My career started on a Windows help desk supporting VDI, Outlook, Active Directory, password resets, escalations, and after-hours incident calls. From there, I progressed into desktop-support leadership, international IT collaboration, vendor and procurement management, enterprise MDM, hospital-scale mobile operations, and the implementation and operation of a new Security Operations Center.
+
+Today, I work at the intersection of security operations, automation, governance, and practical AI. I am especially interested in difficult problems where technical systems must be reliable, explainable, auditable, and usable by real operators.
+
+## Career progression
+
+```text
+Help Desk and IAM
+        ↓
+Desktop Operations Leadership
+        ↓
+Endpoint and MDM Engineering
+        ↓
+Hospital Mobile-Fleet Operations
+        ↓
+Security Operations, Governance, and Automation
+```
+
+### Enterprise support and operations
+
+- Began at HealthPlan Services supporting a Windows environment with VDI access, Outlook synchronization, Active Directory account creation, password resets, escalation workflows, and after-hours incident calls.
+- Transferred to Wipro in Syracuse and ran desktop operations for a complete call-center floor, including imaging, phone configuration, account setup, workstation deployment, proxy support, and server-rack responsibilities.
+- Supported approximately 60 employees at Ambu while managing laptop and mobile-device preparation, specialized PC builds, procurement, vendors, and technology packages for the sales organization.
+- Traveled to Copenhagen to collaborate with Ambu's global technology team.
+
+### Endpoint and mobile engineering
+
+- Supported Windows desktops, WYSE thin clients, Apple devices, network equipment, and server-rack operations at Kelly Benefits.
+- Evaluated Microsoft Intune and Jamf as replacements for MobileIron by building sandbox environments and validating enrollment, application deployment, and policy workflows.
+- Presented the results to leadership and supported the selected Jamf implementation.
+- Managed Apple and Samsung mobile-device operations at Greater Baltimore Medical Center using MobileIron, Apple Business Manager, Apple VPP/Apps and Books, Samsung Knox, and APNs.
+- Helped migrate the hospital from Sprint to T-Mobile, producing more than $150,000 in savings.
+- Coordinated a hospital-wide phone refresh and staged software deployments across approximately 1,400 devices in 40 hospital units while preserving clinical availability.
+
+### Security operations and governance
+
+- Returned to Wipro on the HealthPlan Services account and helped establish a new Security Operations Center.
+- Support day-to-day security operations, policy development, procedure maintenance, audit evidence, and operational documentation.
+- Support PCI DSS, HITRUST, and internal Wipro audit activities.
+- Work with platforms and services including Cortex XSIAM, Tanium, CyberArk, Microsoft 365, ServiceNow, AWS, GitHub, and responsible AI-assisted workflows.
+
+## Selected projects
+
+### [SOC Operations Governance Agent](https://github.com/Wordups/soc-ops-agent)
+
+A read-only Python and Streamlit application for analyzing Cortex XSIAM CSV and JSON exports. It detects field mappings, identifies SLA and documentation risks, classifies closure candidates, and generates auditable Markdown and JSON reports. Safety controls prohibit automatic closing, assignment, ticket updates, or notifications.
+
+### [Midnight Core](https://github.com/Wordups/Midnight-Core)
+
+An AI-assisted compliance-document system that extracts and normalizes policies, maps content across security frameworks, identifies control gaps, and produces template-based draft documents with humans retained in the approval loop.
+
+### [Intune iOS Device Management](https://github.com/Wordups/Intune-iOS-Device-Management)
+
+A documented Microsoft Intune lab covering iOS enrollment, Entra ID integration, Cloud PKI, configuration profiles, compliance enforcement, Conditional Access concepts, and device monitoring.
+
+### [ILAO Assessment Engine](https://github.com/Wordups/ilao-assessment-engine)
+
+A full-stack workflow-discovery application built with React, TypeScript, FastAPI, PostgreSQL, Docker, Pytest, and Playwright. It turns operational interviews into structured assessments, automation opportunities, and downloadable reports.
+
+### [The Board System](https://github.com/Wordups/the-board-system)
+
+A self-running data and probability pipeline that collects public sports data, normalizes it, applies calibrated models and quality controls, runs more than 60 backend tests, and refreshes a static dashboard through GitHub Actions.
+
+### [WordUp](https://github.com/Wordups/WordUp)
+
+A FastAPI-based prompt-to-build system that classifies ideas, routes them into structured execution paths, and produces build artifacts, roadmaps, or editable workspaces.
+
+## What I want to solve next
+
+I am looking for work that combines meaningful technical ownership with strong compensation and room to grow. The best fit will involve one or more of the following:
+
+- Security engineering and SOC automation
+- AI security, governance, evaluation, or human-in-the-loop systems
+- Forward-deployed or customer-facing engineering
+- Operational tooling for regulated environments
+- Endpoint, identity, or compliance automation
+- Building reliable systems that connect APIs, workflows, data, and human decisions
+
+I bring enterprise operating experience, security and compliance context, stakeholder communication, and the ability to build working systems independently.
+
+## Core technologies
+
+- **Security:** Cortex XSIAM, XQL, Tanium, CyberArk, ServiceNow, incident response, SOC operations
+- **Governance:** PCI DSS, HITRUST, HIPAA, policy and procedure development, audit readiness
+- **Endpoint and identity:** Jamf, Intune, MobileIron, Workspace ONE, Apple Business Manager, Samsung Knox, APNs, Active Directory, Entra ID
+- **Engineering:** Python, FastAPI, REST APIs, PostgreSQL, SQLite, React, TypeScript, Docker, GitHub Actions, AWS
+- **Applied AI:** structured outputs, retrieval workflows, model-assisted analysis, validation gates, and human approval controls
+
+## Connect
+
+- [LinkedIn](https://www.linkedin.com/in/brianword)
+- [GitHub](https://github.com/Wordups)
 
 ---
 
-## 🔴 SOC Operations & Detection Engineering
-
-**XSIAM SLA Dashboard**
-Designed and built a 10-widget operational dashboard in Cortex XSIAM using custom XQL queries. Surfaces real-time MTTD, MTTA, MTTR, incident aging, analyst workload distribution, and SLA breach status across all severity levels.
-
-**Sec Ops 24/7 Dashboard**
-Daily SOC operations dashboard tracking resolved cases by assignee, overdue case rates, cases by severity (last 30 days), and top-10 analyst performance metrics.
-
-**SOC Detection Tuning Register**
-Alert tuning tracker for managing false positive suppression and noise reduction across XSIAM-integrated data sources.
-
----
-
-## 📋 Security Policy & Governance
-
-**HPS Security Operations Playbook**
-Full SOC governance SOP covering incident response, SIEM engineering, SLA benchmarks, threat hunting operations, escalation workflows, shift management, and XSIAM access control. Aligned to NIST 800-61 r2, HITRUST, and PCI DSS.
-
-**Threat Hunting Operations Framework**
-Threat hunting program with SLA trigger definitions, RACI matrix, hunt initiation procedure, and monthly reporting requirements. MITRE ATT&CK aligned.
-
-**Enterprise Security Policy Library**
-15+ security policies authored across asset management, change management, endpoint compliance, encryption, remote access, vulnerability management, and patch management.
-
-**Security Policy Lifecycle Automation**
-Structured policy management workflow governing the full lifecycle of security documentation from draft through final and legacy.
-
----
-
-## 🎯 Incident Response & Threat Management
-
-**[Malware Incident Response Playbook](https://github.com/Wordups/Wordups)**
-End-to-end malware IR playbook with escalation paths, containment procedures, and post-incident review framework.
-
-**[Incident Response Plan – NIST Aligned](https://github.com/Wordups/Incident-Response-NIST)**
-IR plan based on NIST 800-61 r2 covering detection, containment, eradication, recovery, and post-incident activity.
-
-**PCI DSS Tabletop Exercise**
-Scoped TTX design including scenario architecture, evaluation criteria, post-exercise improvement framework, and next steps documentation.
-
----
-
-## 💻 Device Management & Automation
-
-**[Intune iOS Device Management](https://github.com/Wordups/Intune-iOS-Device-Management)**
-iOS device enrollment, compliance policy creation, and automation with PowerShell.
-
-**[Zero-Touch Deployment with Intune Autopilot](https://github.com/Wordups/Intune-ZeroTouch)**
-Zero-touch provisioning for streamlined device deployment and management.
-
-**[Intune Compliance Policy Configurations](https://github.com/Wordups/Intune-Compliance)**
-Configuration and enforcement of compliance policies in Microsoft Intune.
-
----
-
-## 📈 Skills & Expertise
-
-| Domain | Tools & Technologies |
-|---|---|
-| **SIEM / SOAR** | Palo Alto Cortex XSIAM, XQL, Splunk |
-| **Endpoint & MDM** | Microsoft Intune, Tanium, JAMF Pro, Workspaceone, MobileIron |
-| **Frameworks** | NIST 800-61 r2, MITRE ATT&CK, HITRUST CSF, PCI DSS v4.0, HIPAA |
-| **GRC & Audit** | Ostendio, ServiceNow, Risk Register Management, Policy Lifecycle |
-| **Network Security** | Palo Alto NGFW, Zscaler, Prisma Cloud |
-| **Automation** | PowerShell, XQL, Postman API Workflows |
-| **Cloud & Identity** | Azure AD, SSO Integration, Privileged Access Management |
-
----
-
-## 🏆 Certifications
-
-View my certifications on [Credly](https://www.credly.com/users/brian-word.df252e4d).
-
----
-
-## 🤝 Connect
-
-[![LinkedIn](https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/linkedin.svg)](https://www.linkedin.com/in/brian-word-320a4683)
-&nbsp;
-[![GitHub](https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/github.svg)](https://github.com/Wordups)
-
----
-
-## ⚡ Fun Fact
-
-I was named **NJCAA National Basketball Player of the Year (2010)**. [Read more here.](https://www.njcaa.org/sports/mbkb/2009-10/releases/2010-04-12_11171.html)
+**Outside of technology:** I was named NJCAA National Basketball Player of the Year in 2010.
