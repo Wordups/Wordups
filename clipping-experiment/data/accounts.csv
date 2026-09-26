@@ -1,0 +1,9 @@
+account_id,platform,handle,status,current_role,current_campaign_ids,role_since,platform_monetization_eligible,created_date,strikes_warnings,notes
+YT1,youtube,Robot Desk,existing_unassigned,,,,unknown,,,Awaiting separate audit; no campaign content
+YT2,youtube,,planned,,,,unknown,,,
+YT3,youtube,,planned,,,,unknown,,,
+YT4,youtube,,planned,,,,unknown,,,
+YT5,youtube,,reserve,,,,unknown,,,
+TT1,tiktok,,planned,,,,unknown,,,
+TT2,tiktok,,planned,,,,unknown,,,
+TT3,tiktok,,planned,,,,unknown,,,
