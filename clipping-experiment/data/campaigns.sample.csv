@@ -1,0 +1,5 @@
+campaign_id,name,campaign_platform,payment_model,cpm,flat_bonus,min_payout_per_submission,end_date,budget_remaining,authorized_to_clip
+A,Example Podcast Clips,whop,cpm,3.00,0,0,2026-10-20,4200,true
+B,Example Tech Interview,vyro,cpm,1.50,0,3,2026-10-01,900,true
+C,Example Stream Highlights,whop,cpm+flat,0.75,0.50,0,2026-10-30,2500,unknown
+D,Example Broken Row,whop,cpm,,0,0,2026-11-05,1000,true
