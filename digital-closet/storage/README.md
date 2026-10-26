@@ -61,3 +61,29 @@ node digital-closet/tests/cloud-storage.cjs
 ```
 
 `storage/supabase.sql` is the migration source for a fresh project. Do not re-run it on Midnight; it is already applied and deliberately fails if its table names exist rather than replacing anything.
+
+## Published GitHub Pages copy
+
+The hosted cloud copy is published at **https://wordups.github.io/WordUp/closet/**. WordUp's existing Pages deployment had not changed since May 7, 2026. The closet lives in a new `/closet/` directory; the original WordUp root page and source are preserved. The public page contains application code and the publishable client key, never private inventory or secret credentials. A fresh hosted visit opens sign-in without loading the browser seed inventory.
+
+To update this deployment:
+
+```sh
+node digital-closet/tools/build-standalone.cjs --cloud
+```
+
+Copy the generated `digital-closet/releases/digital-closet-cloud.html` to `closet/index.html` on `Wordups/WordUp`'s `main` branch, commit, and push. Its existing GitHub Pages configuration builds from the root of `main`. Verify the resulting page and leave the root files intact. Keep all source changes in this repository as well.
+
+### Rejected login / password recovery
+
+A dashboard login is distinct from an app account. `invalid_credentials` does not identify whether an account is absent, uses another provider, or has a different password. Existing accounts should use **Forgot password?**, not create a duplicate account. Passwords are never retrieved or changed by the agent.
+
+Recovery is available inside **Storage & sync → Forgot password?**:
+
+1. Enter your account email and choose **Send reset email**.
+2. In the email, copy the actual **Reset password** link address without opening it. Paste it into the recovery form, then choose **Verify reset link**. On a phone, press and hold the email link to copy it. Do not paste it into chat.
+3. Enter and confirm a new password of at least 12 characters, then save and sign in.
+
+This copy-link recovery deliberately leaves Midnight's existing project-wide email redirect settings unchanged. The form only accepts a recovery verification link from the configured Supabase project and checks that the returned email matches the requested account. It uses a separate in-memory recovery session, clears the link/password fields, and signs that recovery session out afterward. The shared Midnight app account's password is updated only when its owner submits the new password. Other apps using that same account will use the new password too.
+
+Recovery delivery and password changes require user action. Tests use simulated reset emails/tokens; no live reset email was sent and no real account password was changed during development. If a project's custom email template wraps or replaces the original Supabase verification link, use its own recovery flow or configure a direct closet callback deliberately rather than loosening link validation.

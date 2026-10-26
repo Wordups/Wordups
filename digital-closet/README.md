@@ -81,3 +81,7 @@ node digital-closet/tests/private-storage.cjs
 ```
 
 The scripts use installed Google Chrome on macOS by default; set `CHROME_PATH` for another Chrome executable. They cover phone-width layout, add/review/confirmation, reload persistence, edit, duplicate warning, failed storage writes, front/label photos, batch queue, delete, portable export, private-adapter failure/retry, legacy evidence/valuation preservation, and portable-photo import into a mocked private asset service. Mock tests do not prove the deployed Claude permissions or device camera behavior; validate those in the hosted preview.
+
+## Hosted closet
+
+Open **[Digital Closet](https://wordups.github.io/WordUp/closet/)** on your phone or computer. This cloud-first copy is hosted in a new folder on the existing WordUp Pages site, preserving its original page. Sign in to the same app account on both devices. Use **Forgot password?** if your existing account rejects its password; [the storage guide](storage/README.md#rejected-login--password-recovery) explains recovery. The old Claude artifact remains a separate, unchanged copy.

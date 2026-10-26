@@ -273,23 +273,45 @@
   <form id="cloud-form">
     <h2 id="cloud-title">Private cloud storage</h2>
     <p id="cloud-status" role="status">Sign in to access your closet on your phone and computer.</p>
+    <p class="note">First time here? Choose <b>Create account</b> with your email and a new password. Your Supabase dashboard login does not automatically create a closet account.</p>
+    <details id="cloud-advanced"><summary>Storage connection settings</summary>
     <p class="sync">Connecting opens a separate cloud closet. Your existing browser and Claude inventory stay where they are. Export them first, then import the backup here when ready.</p>
     <label for="cloud-url">Supabase project URL</label><input id="cloud-url" type="url" required placeholder="https://your-project.supabase.co" autocomplete="off">
     <label for="cloud-key">Publishable key</label><input id="cloud-key" required placeholder="sb_publishable_…" autocomplete="off" spellcheck="false">
+    </details>
     <div id="cloud-signin">
       <label for="cloud-email">Email</label><input id="cloud-email" type="email" autocomplete="username" required>
       <label for="cloud-password">Password</label><input id="cloud-password" type="password" autocomplete="current-password" required>
-      <p class="sync">Use the account created in your private Supabase project. You can sign in or create an account. Your password is sent to Supabase and is never saved by the closet app.</p>
+      <p class="sync">Use the account created in your private Supabase project. You can sign in or create an account. Your password is sent securely to Supabase. Use at least 12 characters for a new account.</p>
     </div>
     <p id="cloud-error" class="note" role="alert" hidden></p>
     <div class="actions">
       <button class="btn solid" type="submit" id="cloud-connect">Sign in &amp; connect</button>
       <button class="btn" type="submit" id="cloud-register">Create account</button>
+      <button class="btn" type="button" id="cloud-forgot">Forgot password?</button>
       <button class="btn" type="button" id="cloud-refresh" hidden>Refresh closet</button>
       <button class="btn" type="button" id="cloud-signout" hidden>Sign out</button>
       <button class="btn" type="button" id="cloud-local">Use browser storage</button>
       <button class="btn" type="button" id="cloud-close">Close</button>
     </div>
+  </form>
+</dialog>
+<dialog id="recovery-dialog" aria-labelledby="recovery-title">
+  <form id="recovery-form">
+    <h2 id="recovery-title">Reset your password</h2>
+    <p>This resets your Midnight app account password across apps that use it. Your wardrobe stays intact.</p>
+    <label for="recovery-email">Account email</label><input id="recovery-email" type="email" autocomplete="username" required>
+    <button class="btn" id="recovery-send" type="button" style="margin-top:12px">Send reset email</button>
+    <p class="sync">In the reset email, copy the address of the <b>Reset password</b> link (on a phone, press and hold it). Paste it below instead of opening it. This keeps recovery on this closet page without changing Midnight's existing email redirects. Never paste the link into chat.</p>
+    <label for="recovery-link">Reset link from your email</label><input id="recovery-link" type="password" autocomplete="off" spellcheck="false">
+    <button class="btn" id="recovery-verify" type="button" style="margin-top:12px">Verify reset link</button>
+    <div id="recovery-new-fields" hidden>
+      <label for="recovery-password">New password (at least 12 characters)</label><input id="recovery-password" type="password" autocomplete="new-password" minlength="12">
+      <label for="recovery-confirm">Confirm new password</label><input id="recovery-confirm" type="password" autocomplete="new-password" minlength="12">
+      <button class="btn solid" id="recovery-save" type="submit" style="margin-top:12px">Save new password</button>
+    </div>
+    <p id="recovery-status" role="status"></p><p id="recovery-error" class="note" role="alert" hidden></p>
+    <button class="btn" type="button" id="recovery-close">Back to sign in</button>
   </form>
 </dialog>
 <dialog id="ask">
@@ -353,6 +375,7 @@ const local = {
 
 // Storage backend: the artifact database when published, this browser otherwise.
 const DEFAULT_CLOUD = {url:"https://depvhpxqlpcvsuuzkwyo.supabase.co",key:"sb_publishable_NCSk0d4P3K5SxDEKWwWg1Q_8X00rS6E"};
+const CLOUD_HOSTED = document.querySelector('meta[name="closet-storage"]')?.content === "cloud";
 let cloud = null, cloudClient = null, cloudAuthSubscription = null, storageGeneration = 0, draftKey = "draft";
 let db = null, assets = null, downloads = null, loaded = false;
 let items = [], outfits = [];
@@ -871,7 +894,7 @@ async function connectCloud(config, credentials, register = false) {
 }
 function updateCloudControls() {
   const connected=!!cloud;
-  $("#cloud-signin").hidden=connected;$("#cloud-connect").hidden=connected;$("#cloud-register").hidden=connected;
+  $("#cloud-signin").hidden=connected;$("#cloud-connect").hidden=connected;$("#cloud-register").hidden=connected;$("#cloud-forgot").hidden=connected;
   $("#cloud-email").required=!connected;$("#cloud-password").required=!connected;
   $("#cloud-refresh").hidden=!connected;$("#cloud-signout").hidden=!connected;
 }
@@ -889,9 +912,67 @@ $("#cloud-form").onsubmit=async e=>{
     const connected=await connectCloud({url:$("#cloud-url").value.trim(),key:$("#cloud-key").value.trim()},{email:$("#cloud-email").value.trim(),password:$("#cloud-password").value},register);
     if(!connected)return;
     $("#cloud-settings").close();toast("Cloud closet connected. Import your exported inventory when ready.");
-  }catch(e){$("#cloud-error").textContent=e.message;$("#cloud-error").hidden=false;}
+  }catch(e){
+    $("#cloud-error").textContent=e.code === "invalid_credentials" || /invalid login credentials/i.test(e.message)
+      ? "That email and password were not accepted. Already have an account? Choose Forgot password. First time here? Choose Create account with a new password."
+      : e.code === "user_already_exists" ? "This email already has an app account. Use its password to sign in, or choose Forgot password to reset it."
+      : e.message;
+    $("#cloud-error").hidden=false;
+  }
   finally{$("#cloud-password").value="";$("#cloud-connect").disabled=false;$("#cloud-register").disabled=false;}
 };
+// Recovery uses a separate in-memory session: no tokens are saved in URLs or storage.
+let recoveryClient=null, recoveryVerified=false;
+function recoveryError(e){$("#recovery-error").textContent=e.message || "Password recovery failed. Try a fresh reset email.";$("#recovery-error").hidden=false;}
+async function getRecoveryClient(){
+  if(recoveryClient)return recoveryClient;
+  await loadCloudCode();const config=ClosetCloud.validateConfig({url:$("#cloud-url").value.trim(),key:$("#cloud-key").value.trim()});
+  const sdk=await ClosetCloud.loadSDK();
+  recoveryClient=sdk.createClient(config.url,config.key,{auth:{storageKey:"dc.password-recovery",persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+  return recoveryClient;
+}
+$("#cloud-forgot").onclick=()=>{
+  $("#recovery-form").reset();$("#recovery-email").value=$("#cloud-email").value;
+  $("#recovery-error").hidden=true;$("#recovery-status").textContent="";$("#recovery-new-fields").hidden=true;
+  recoveryVerified=false;$("#cloud-password").value="";$("#recovery-dialog").showModal();
+};
+$("#recovery-send").onclick=async()=>{
+  if(!$("#recovery-email").reportValidity())return;
+  $("#recovery-send").disabled=true;$("#recovery-error").hidden=true;
+  try{const client=await getRecoveryClient();const {error}=await client.auth.resetPasswordForEmail($("#recovery-email").value.trim());if(error)throw error;$("#recovery-status").textContent="If this address can receive reset emails, check your inbox and copy the reset link here. You may need to wait before requesting another.";}
+  catch(e){recoveryError(e);}finally{$("#recovery-send").disabled=false;}
+};
+$("#recovery-verify").onclick=async()=>{
+  if(!$("#recovery-email").reportValidity())return;
+  $("#recovery-verify").disabled=true;$("#recovery-error").hidden=true;
+  try{
+    const config=ClosetCloud.validateConfig({url:$("#cloud-url").value.trim(),key:$("#cloud-key").value.trim()});
+    let link;try{link=new URL($("#recovery-link").value.trim());}catch{throw new Error("Paste the full reset-link address from the email.");}
+    if(link.origin!==config.url || link.pathname!=="/auth/v1/verify" || link.searchParams.get("type")!=="recovery")throw new Error("Use the original Supabase reset link for this closet's project. Copy it from the email without opening it first.");
+    const token=link.searchParams.get("token") || link.searchParams.get("token_hash");if(!token)throw new Error("The reset link is missing its verification token. Request a fresh email.");
+    const client=await getRecoveryClient();const {data,error}=await client.auth.verifyOtp({token_hash:token,type:"recovery"});if(error)throw error;
+    if(!data.session)throw new Error("The reset link did not establish a recovery session.");
+    if(data.user?.email?.toLowerCase() !== $("#recovery-email").value.trim().toLowerCase()) {await client.auth.signOut({scope:"local"});throw new Error("The reset link belongs to a different email address. Enter that address or request a new link.");}
+    recoveryVerified=true;$("#recovery-new-fields").hidden=false;$("#recovery-password").required=true;$("#recovery-confirm").required=true;
+    $("#recovery-status").textContent="Link verified. Choose your new password below.";$("#recovery-password").focus();
+  }catch(e){recoveryError(e);}finally{$("#recovery-link").value="";$("#recovery-verify").disabled=false;}
+};
+$("#recovery-form").onsubmit=async e=>{
+  e.preventDefault();if(!recoveryVerified)return recoveryError(new Error("Verify the reset link first."));
+  if($("#recovery-password").value!==$("#recovery-confirm").value)return recoveryError(new Error("The new passwords do not match."));
+  $("#recovery-save").disabled=true;$("#recovery-error").hidden=true;
+  try{
+    const {error}=await recoveryClient.auth.updateUser({password:$("#recovery-password").value});if(error)throw error;
+    $("#cloud-email").value=$("#recovery-email").value.trim();$("#cloud-error").hidden=true;
+    await clearRecovery();$("#recovery-dialog").close();cloudMessage("Password updated. Sign in with your new password.");
+  }catch(e){recoveryError(e);}finally{$("#recovery-save").disabled=false;}
+};
+async function clearRecovery(){
+  if(recoveryClient){await recoveryClient.auth.signOut({scope:"local"}).catch(()=>{});recoveryClient.auth.stopAutoRefresh();}
+  recoveryClient=null;recoveryVerified=false;$("#recovery-form").reset();$("#recovery-password").required=false;$("#recovery-confirm").required=false;$("#recovery-new-fields").hidden=true;
+}
+$("#recovery-close").onclick=async()=>{await clearRecovery();$("#recovery-dialog").close();};
+$("#recovery-dialog").addEventListener("cancel",e=>{e.preventDefault();$("#recovery-close").click();});
 $("#cloud-refresh").onclick=()=>{cloud?.refresh();toast("Refreshing cloud closet…");};
 window.addEventListener("focus",()=>cloud?.refresh());
 $("#cloud-signout").onclick=async()=>{
@@ -908,7 +989,7 @@ $("#cloud-local").onclick=async()=>{
 };
 async function start() {
   renderAll();
-  const configured = local.get("cloud", null);
+  const configured = local.get("cloud", CLOUD_HOSTED ? DEFAULT_CLOUD : null);
   if(configured) { await connectCloud(configured); return; }
   const generation = storageGeneration;
   const c = window.claude;
@@ -925,10 +1006,11 @@ async function start() {
   db.collection("outfits").onSnapshot(snap => { if(generation !== storageGeneration) return; outfits = snap.docs.map(d => d.data()); renderOutfits(); }, () => {});
 }
 start().catch(e => {
-  if(local.get("cloud",null)){lockCloud("Cloud is selected. Open Storage & sync to sign in or reconnect. Your other inventory is preserved.");cloudMessage(e.message);}
+  if(local.get("cloud",null) || CLOUD_HOSTED){lockCloud("Cloud is selected. Open Storage & sync to sign in or reconnect. Your other inventory is preserved.");cloudMessage(/session missing|sign in to open/i.test(e.message) ? "Sign in or create a closet account to open your private wardrobe." : e.message);}
   else {$("#sync").textContent="Could not open storage. Reload to retry; existing inventory has not been replaced.";failed(e);}
 });
-if(location.hash === "#storage") $("#storage-settings").click();
+if(CLOUD_HOSTED) $("#cloud-local").hidden=true;
+if(location.hash === "#storage" || CLOUD_HOSTED) $("#storage-settings").click();
 </script>
 </body>
 </html>
