@@ -9,7 +9,10 @@ An AI-assisted personal wardrobe and styling platform focused on getting more fr
 
 ## Prototype
 
-Open `prototype/index.html` in a browser. It is a single file with no build step and no server. Data stays in the browser's local storage. Use **Export inventory JSON** to keep a copy.
+Open `prototype/index.html` in a browser. It is a single file with no build step and no server.
+
+- **Standalone:** data stays in that browser's local storage. Use **Export inventory JSON** to keep a copy.
+- **Published as a claude.ai artifact:** the same file saves the inventory and outfits to the artifact's private database, which only the owner and editors can read. It syncs across devices and stores photos as artifact assets.
 
 What it covers from Wave 1:
 

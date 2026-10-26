@@ -24,6 +24,7 @@
     --unknown: #7a736a;
     --serif: "Cormorant Garamond", Georgia, serif;
     --sans: Inter, system-ui, sans-serif;
+    color-scheme: dark;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--black); color: var(--cream); font: 14px/1.5 var(--sans); }
@@ -118,6 +119,11 @@
   .seasons label { display: flex; gap: 4px; align-items: center; margin: 0; color: var(--cream); }
   .seasons input { width: auto; }
   .hidden { display: none !important; }
+  .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--charcoal); border: 1px solid var(--brass); color: var(--cream); padding: 9px 16px; border-radius: 4px; font-size: 13px; max-width: calc(100vw - 32px); z-index: 20; }
+  .sync { font-size: 11px; color: var(--muted); }
+  .empty-state { color: var(--muted); font-size: 13px; padding: 12px 0; }
+  :focus-visible { outline: 2px solid var(--champagne); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { .hanger { transition: none; } }
 </style>
 </head>
 <body>
@@ -196,6 +202,7 @@
       <button class="btn small" id="export">Export inventory JSON</button>
       <label class="btn small" style="margin:0;color:var(--champagne)">Import<input type="file" id="import" accept="application/json" hidden></label>
     </div>
+    <div class="sync" id="sync">Saved in this browser only. Export to keep a copy.</div>
   </aside>
 </main>
 
@@ -236,6 +243,17 @@
   </form>
 </dialog>
 
+<dialog id="ask">
+  <form method="dialog">
+    <p id="ask-msg" style="margin:0 0 16px"></p>
+    <div class="actions" style="justify-content:flex-end">
+      <button class="btn" value="no">Cancel</button>
+      <button class="btn solid" value="yes" id="ask-yes">Confirm</button>
+    </div>
+  </form>
+</dialog>
+<div class="toast" id="toast" hidden></div>
+
 <script>
 const ZONES = {
   rail: { label: "Hanging Rail", cats: ["outerwear", "jacket", "shirt", "sweater", "suit"] },
@@ -258,7 +276,8 @@ const SLOTS = [
 const ATTRS = ["brand", "model", "color", "material"];
 const STATUS_LABEL = { available: "Available", laundry: "In laundry", needs_cleaning: "Needs cleaning", storage: "In storage", needs_repair: "Needs repair", unavailable: "Temporarily unavailable" };
 
-// Mirrors schema/inventory.seed.json.
+// Standalone fallback only; mirrors schema/inventory.seed.json. The published
+// page reads its inventory from the artifact database instead.
 const SEED = [{
   id: "OUT-001", owner: "founder", zone: "rail", category: "outerwear", name: "Gray Textured Overcoat",
   brand: { value: "Jack Victor", confidence: "verified", evidence: "Owner statement (not independent authentication); label photo pending" },
@@ -278,24 +297,63 @@ const SEED = [{
   status: "available", formality: 4, seasons: ["fall", "winter"], wear_count: 0, photos: [], notes: null
 }];
 
-const store = {
+const local = {
   get(k, d) { try { const v = localStorage.getItem("dc." + k); return v ? JSON.parse(v) : d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem("dc." + k, JSON.stringify(v)); return true; } catch { return false; } }
 };
-let items = store.get("items", structuredClone(SEED));
-let outfits = store.get("outfits", []);
-let draft = store.get("draft", {});
-let selected = null;
-let editing = null;
-const save = () => {
-  if (!store.set("items", items)) alert("Could not save to this browser (storage full or blocked). Export your inventory to keep it.");
-  store.set("outfits", outfits); store.set("draft", draft);
-};
+
+// Storage backend: the artifact database when published, this browser otherwise.
+let db = null, assets = null, downloads = null, loaded = false;
+let items = [], outfits = [];
+let draft = local.get("draft", {});
+let selected = null, editing = null;
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const money = n => n == null ? null : "$" + Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
 const byId = id => items.find(i => i.id === id);
+const photoSrc = p => p.startsWith("data:") ? p : "/_blob/" + p;
+
+let toastTimer;
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 3500);
+}
+function ask(msg, yes = "Confirm") {
+  return new Promise(res => {
+    const d = $("#ask"); $("#ask-msg").textContent = msg; $("#ask-yes").textContent = yes;
+    d.returnValue = ""; d.showModal();
+    d.addEventListener("close", () => res(d.returnValue === "yes"), { once: true });
+  });
+}
+function failed(e) {
+  const code = e?.code;
+  toast(code === "quota_exceeded" ? "Storage is full. Remove items or photos you no longer need."
+    : code === "invalid_argument" ? "You can view this closet but not change it."
+    : "That change didn't save. Check your connection and try again.");
+}
+
+async function putItem(rec) {
+  if (!db) { items = items.some(i => i.id === rec.id) ? items.map(i => i.id === rec.id ? rec : i) : [...items, rec]; saveLocal(); return; }
+  await db.collection("items").doc(rec.id).set(rec);
+}
+async function removeItem(id) {
+  if (!db) { items = items.filter(i => i.id !== id); saveLocal(); return; }
+  await db.collection("items").doc(id).delete();
+}
+async function putOutfit(o) {
+  if (!db) { outfits = [o, ...outfits.filter(x => x.id !== o.id)]; saveLocal(); return; }
+  await db.collection("outfits").doc(o.id).set(o);
+}
+async function removeOutfit(id) {
+  if (!db) { outfits = outfits.filter(o => o.id !== id); saveLocal(); return; }
+  await db.collection("outfits").doc(id).delete();
+}
+function saveLocal() {
+  if (!local.set("items", items) || !local.set("outfits", outfits)) toast("This browser couldn't save. Export your inventory to keep it.");
+  renderAll();
+}
+const saveDraft = () => local.set("draft", draft);
 
 const NAMED = { black: "#1a1a1a", white: "#eeeae2", cream: "#e9dfc8", ivory: "#efe7d2", gray: "#7d7f82", grey: "#7d7f82", charcoal: "#3a3b3d", navy: "#1f2a44", blue: "#3b5c8c", denim: "#3f5878", brown: "#6b4630", tan: "#b08a5f", camel: "#b48a56", khaki: "#b5a57a", olive: "#5d6239", green: "#3e6146", burgundy: "#6b1f2c", red: "#9c2b2b", pink: "#d49aa5", purple: "#5b3d6b", yellow: "#d9b440", orange: "#c46a2c", silver: "#c0c3c6", gold: "#c9a24f", beige: "#d6c6a5" };
 function fabric(item) {
@@ -338,6 +396,8 @@ function filtered() {
 }
 
 function renderCloset() {
+  if (!loaded) { $("#closet").innerHTML = `<div class="empty-state">Opening your closet…</div>`; return; }
+  if (!items.length) { $("#closet").innerHTML = `<div class="empty-state">Your closet is empty. Use <b>+ Add item</b> to hang your first garment.</div>`; return; }
   const list = filtered();
   $("#closet").innerHTML = Object.entries(ZONES).map(([z, meta]) => {
     const zi = list.filter(i => i.zone === z);
@@ -370,7 +430,7 @@ function renderDetail() {
   const paid = v.purchase_price?.amount;
   const cpw = paid != null && i.wear_count ? money(paid / i.wear_count) : null;
   $("#detail").innerHTML = `
-    ${i.photos?.[0] ? `<img class="photo" src="${i.photos[0]}" alt="">` : ""}
+    ${i.photos?.[0] ? `<img class="photo" src="${esc(photoSrc(i.photos[0]))}" alt="${esc(i.name)}">` : ""}
     <h2>${esc(i.name)}</h2>
     <div class="sub">${esc(i.id)} · ${CAT_LABEL(i.category)} · ${ZONES[i.zone].label}</div>
     <dl>
@@ -394,27 +454,31 @@ function renderDetail() {
       <button class="btn small" id="edit">Edit</button>
       <button class="btn small" id="del">Remove</button>
     </div>`;
-  $("#status-sel").onchange = e => { i.status = e.target.value; save(); renderAll(); };
-  $("#wore").onclick = () => { i.wear_count = (i.wear_count || 0) + 1; save(); renderAll(); };
+  $("#status-sel").onchange = e => putItem({ ...i, status: e.target.value }).catch(failed);
+  $("#wore").onclick = () => putItem({ ...i, wear_count: (i.wear_count || 0) + 1 }).then(() => toast(`Logged a wear for ${i.name}.`), failed);
   $("#to-outfit").onclick = () => addToOutfit(i);
   $("#edit").onclick = () => openForm(i);
-  $("#del").onclick = () => {
-    if (!confirm(`Remove ${i.name} (${i.id}) from your inventory?`)) return;
-    items = items.filter(x => x.id !== i.id);
-    for (const k in draft) if (draft[k] === i.id) delete draft[k];
-    selected = null; save(); renderAll();
+  $("#del").onclick = async () => {
+    if (!await ask(`Remove ${i.name} (${i.id}) from your inventory?`, "Remove")) return;
+    try {
+      await removeItem(i.id);
+      if (assets) for (const p of i.photos || []) if (!p.startsWith("data:")) assets.delete(p).catch(() => {});
+      for (const k in draft) if (draft[k] === i.id) delete draft[k];
+      saveDraft(); selected = null; renderAll();
+    } catch (e) { failed(e); }
   };
 }
 
 function slotFor(cat) { return SLOTS.find(s => s[2].includes(cat))?.[0]; }
-function addToOutfit(i) { const s = slotFor(i.category); if (!s) return; draft[s] = i.id; save(); renderSlots(); }
+function addToOutfit(i) { const s = slotFor(i.category); if (!s) return; draft[s] = i.id; saveDraft(); renderSlots(); }
 function renderSlots() {
   $("#slots").innerHTML = SLOTS.map(([k, l]) => {
     const i = byId(draft[k]);
-    return `<div class="outfit-slot"><div class="k">${l}${i ? `<button class="x" data-slot="${k}" title="Remove">×</button>` : ""}</div>${i ? esc(i.name) : "<span style='color:var(--muted)'>—</span>"}</div>`;
+    return `<div class="outfit-slot"><div class="k">${l}${i ? `<button class="x" data-slot="${k}" title="Remove from outfit">×</button>` : ""}</div>${i ? esc(i.name) : "<span style='color:var(--muted)'>—</span>"}</div>`;
   }).join("");
 }
 
+let suggestion = null;
 function suggest() {
   const target = +$("#occasion").value, season = $("#season").value;
   const pool = items.filter(i => i.status === "available" && (!season || !i.seasons?.length || i.seasons.includes(season)));
@@ -425,18 +489,19 @@ function suggest() {
     if (opts.length && Math.abs((opts[0].formality ?? 3) - target) <= 1) pick[k] = opts[0].id;
     else if (k !== "outer" && k !== "acc" && k !== "scent") missing.push(l.toLowerCase());
   }
+  suggestion = pick;
   const names = Object.values(pick).map(id => esc(byId(id).name));
   $("#suggest-out").innerHTML = names.length
-    ? `<div>${names.join(" · ")}</div>${missing.length ? `<div style="color:var(--muted);margin-top:4px">No available ${missing.join(", ")} at this formality — add more of what you own to fill the gap.</div>` : ""}<div class="actions"><button class="btn small" id="use-suggest">Use as outfit in progress</button></div>`
+    ? `<div>${names.join(" · ")}</div>${missing.length ? `<div style="color:var(--muted);margin-top:4px">No available ${missing.join(", ")} at this formality. Add more of what you own to fill the gap.</div>` : ""}<div class="actions"><button class="btn small" id="use-suggest">Use as outfit in progress</button></div>`
     : `<span style="color:var(--muted)">Nothing available fits yet. Add more items you own to the rack.</span>`;
-  const use = $("#use-suggest"); if (use) use.onclick = () => { draft = pick; save(); renderSlots(); };
 }
 
 function renderOutfits() {
-  $("#saved-outfits").innerHTML = outfits.length ? outfits.map((o, n) => `
+  const sorted = [...outfits].sort((a, b) => (b.created || "").localeCompare(a.created || ""));
+  $("#saved-outfits").innerHTML = sorted.length ? sorted.map(o => `
     <div class="card"><h4>${esc(o.name)}</h4>
-      <div style="font-size:13px">${Object.entries(o.items).map(([k, id]) => { const i = byId(id); return i ? `${esc(i.name)}${i.status !== "available" ? ` <span class="badge unknown">${STATUS_LABEL[i.status]}</span>` : ""}` : `<span style="color:var(--muted)">${esc(id)} (removed)</span>`; }).join(" · ")}</div>
-      <div class="actions"><button class="btn small" data-load="${n}">Load</button><button class="btn small" data-wear="${n}">Wore this today</button><button class="btn small" data-drop="${n}">Delete</button></div>
+      <div style="font-size:13px">${Object.values(o.items || {}).map(id => { const i = byId(id); return i ? `${esc(i.name)}${i.status !== "available" ? ` <span class="badge unknown">${STATUS_LABEL[i.status]}</span>` : ""}` : `<span style="color:var(--muted)">${esc(id)} (removed)</span>`; }).join(" · ")}</div>
+      <div class="actions"><button class="btn small" data-load="${esc(o.id)}">Load</button><button class="btn small" data-wear="${esc(o.id)}">Wore this today</button><button class="btn small" data-drop="${esc(o.id)}">Delete</button></div>
     </div>`).join("") : `<div class="card"><span style="color:var(--muted)">No saved outfits yet. Build one from the rack and save it in the side panel.</span></div>`;
 }
 
@@ -458,13 +523,13 @@ function renderInsights() {
     <div class="card"><h4>By zone</h4><table><tr><th>Zone</th><th>Items</th></tr>${Object.entries(byZone).map(([z, n]) => `<tr><td>${ZONES[z].label}</td><td>${n}</td></tr>`).join("")}</table></div>
     <div class="card"><h4>By brand</h4>${Object.keys(brands).length ? `<table><tr><th>Brand</th><th>Items</th></tr>${Object.entries(brands).sort((a, b) => b[1] - a[1]).map(([b, n]) => `<tr><td>${esc(b)}</td><td>${n}</td></tr>`).join("")}</table>` : `<span style="color:var(--muted)">No brands recorded.</span>`}</div>
     <div class="card"><h4>Needs verification</h4><div style="font-size:13px">${unverified.length ? unverified.map(i => `${esc(i.id)} ${esc(i.name)}`).join("<br>") : "Every item's brand, color, and material is observed or verified."}</div></div>
-    <div class="card"><h4>Cost per wear</h4><table><tr><th>Item</th><th>Paid</th><th>Wears</th><th>Per wear</th></tr>${paid.length ? paid.map(i => `<tr><td>${esc(i.name)}</td><td>${money(i.valuation.purchase_price.amount)}</td><td>${i.wear_count || 0}</td><td>${i.wear_count ? money(i.valuation.purchase_price.amount / i.wear_count) : "—"}</td></tr>`).join("") : `<tr><td colspan="4" style="color:var(--muted)">Record a purchase price on an item to track cost per wear.</td></tr>`}</table>
-      <div style="color:var(--muted);font-size:12px;margin-top:8px">Uses actual purchase price only — never MSRP or comparable retail.</div></div>`;
+    <div class="card"><h4>Cost per wear</h4><div style="overflow-x:auto"><table><tr><th>Item</th><th>Paid</th><th>Wears</th><th>Per wear</th></tr>${paid.length ? paid.map(i => `<tr><td>${esc(i.name)}</td><td>${money(i.valuation.purchase_price.amount)}</td><td>${i.wear_count || 0}</td><td>${i.wear_count ? money(i.valuation.purchase_price.amount / i.wear_count) : "—"}</td></tr>`).join("") : `<tr><td colspan="4" style="color:var(--muted)">Record a purchase price on an item to track cost per wear.</td></tr>`}</table></div>
+      <div style="color:var(--muted);font-size:12px;margin-top:8px">Uses actual purchase price only, never MSRP or comparable retail.</div></div>`;
 }
 
 function nextId(cat) {
   const p = PREFIX[cat] || PREFIX[ZONE_OF(cat)];
-  const n = Math.max(0, ...items.filter(i => i.id.startsWith(p + "-")).map(i => +i.id.split("-")[1]));
+  const n = Math.max(0, ...items.filter(i => i.id.startsWith(p + "-")).map(i => +i.id.split("-")[1] || 0));
   return `${p}-${String(n + 1).padStart(3, "0")}`;
 }
 
@@ -475,7 +540,7 @@ function openForm(item) {
   f.reset();
   $("#dlg-title").textContent = item ? `Edit ${item.id}` : "Add item";
   f.category.innerHTML = Object.entries(ZONES).map(([z, m]) => `<optgroup label="${m.label}">${m.cats.map(c => `<option value="${c}">${CAT_LABEL(c)}</option>`).join("")}</optgroup>`).join("");
-  $("#attr-fields").innerHTML = ATTRS.map(a => `<label>${CAT_LABEL(a)}</label><div class="row"><input name="${a}" placeholder="${a === "brand" ? "Only if label or receipt shows it" : ""}"><select name="${a}_c">${CONF_OPTS.map(c => `<option value="${c}">${c === "unknown" ? "unverified" : c}</option>`).join("")}</select></div>`).join("");
+  $("#attr-fields").innerHTML = ATTRS.map(a => `<label for="f-${a}">${CAT_LABEL(a)}</label><div class="row"><input id="f-${a}" name="${a}" placeholder="${a === "brand" ? "Only if label or receipt shows it" : ""}"><select id="f-${a}-c" name="${a}_c">${CONF_OPTS.map(c => `<option value="${c}">${c === "unknown" ? "unverified" : c}</option>`).join("")}</select></div>`).join("");
   if (item) {
     f.name.value = item.name; f.category.value = item.category; f.status.value = item.status;
     f.formality.value = item.formality ?? 3; f.acquisition.value = item.acquisition || ""; f.notes.value = item.notes || "";
@@ -488,27 +553,35 @@ function openForm(item) {
   $("#dlg").showModal();
 }
 
-function downscale(file) {
+function downscale(file, max = 480) {
   return new Promise(res => {
     if (!file) return res(null);
     const img = new Image(), r = new FileReader();
     r.onload = () => { img.src = r.result; };
     img.onload = () => {
-      const s = Math.min(1, 480 / Math.max(img.width, img.height)), c = document.createElement("canvas");
+      const s = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement("canvas");
       c.width = img.width * s; c.height = img.height * s;
       c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-      res(c.toDataURL("image/jpeg", 0.8));
+      res(c);
     };
     img.onerror = () => res(null);
     r.readAsDataURL(file);
   });
+}
+async function storePhoto(file) {
+  const canvas = await downscale(file, assets ? 1200 : 480);
+  if (!canvas) return null;
+  if (!assets) return canvas.toDataURL("image/jpeg", 0.8);
+  const blob = await new Promise(r => canvas.toBlob(r, "image/jpeg", 0.85));
+  const up = await assets.upload(blob, { type: "image/jpeg" });
+  return up.id;
 }
 
 $("#dlg").addEventListener("close", async () => {
   if ($("#dlg").returnValue !== "save") return;
   const f = $("#form"), cat = f.category.value, zone = ZONE_OF(cat);
   const base = editing || { id: nextId(cat), owner: "founder", wear_count: 0, photos: [], valuation: {}, pattern: { value: null, confidence: "unknown", evidence: null }, size: { value: null, confidence: "unknown", evidence: null } };
-  const rec = { ...base, name: f.name.value.trim(), category: cat, zone, status: f.status.value,
+  const rec = { ...structuredClone(base), name: f.name.value.trim(), category: cat, zone, status: f.status.value,
     formality: Math.min(5, Math.max(1, +f.formality.value || 3)),
     seasons: [...f.querySelectorAll("[name=seasons]:checked")].map(cb => cb.value),
     acquisition: f.acquisition.value.trim() || null, notes: f.notes.value.trim() || null };
@@ -518,11 +591,13 @@ $("#dlg").addEventListener("close", async () => {
     rec[a] = { value: v, confidence: v ? f[a + "_c"].value : "unknown", evidence: prev && prev.value === v ? prev.evidence ?? null : null };
   });
   const pp = f.purchase_price.value;
-  rec.valuation = { ...base.valuation, purchase_price: pp === "" ? { amount: null, confidence: "unknown", source: null } : { amount: +pp, confidence: "verified", source: "Owner-entered" } };
-  const photo = await downscale(f.photo.files[0]);
-  if (photo) rec.photos = [photo, ...(base.photos || [])].slice(0, 3);
-  if (editing) items = items.map(i => i.id === editing.id ? rec : i); else items.push(rec);
-  selected = rec.id; save(); renderAll();
+  rec.valuation = { ...rec.valuation, purchase_price: pp === "" ? { amount: null, confidence: "unknown", source: null } : { amount: +pp, confidence: "verified", source: "Owner-entered" } };
+  try {
+    const photo = await storePhoto(f.photo.files[0]);
+    if (photo) rec.photos = [photo, ...(base.photos || [])].slice(0, 3);
+  } catch { toast("The photo didn't upload. The item was saved without it."); }
+  try { await putItem(rec); selected = rec.id; renderAll(); toast(`${editing ? "Updated" : "Added"} ${rec.id}.`); }
+  catch (e) { failed(e); }
 });
 
 function renderAll() { renderCloset(); renderDetail(); renderSlots(); renderOutfits(); renderInsights(); }
@@ -531,41 +606,73 @@ $("#closet").addEventListener("click", e => { const b = e.target.closest("[data-
 ["#q", "#f-zone", "#f-status"].forEach(s => $(s).addEventListener("input", renderCloset));
 $("#add-btn").onclick = () => openForm();
 $("#suggest").onclick = suggest;
-$("#slots").addEventListener("click", e => { const k = e.target.dataset.slot; if (k) { delete draft[k]; save(); renderSlots(); } });
-$("#save-outfit").onclick = () => {
-  if (!Object.keys(draft).length) return alert("Add at least one item to the outfit first.");
-  outfits.unshift({ name: $("#outfit-name").value.trim() || `Outfit ${outfits.length + 1}`, items: { ...draft }, created: new Date().toISOString() });
-  $("#outfit-name").value = ""; save(); renderOutfits();
+$("#suggest-out").addEventListener("click", e => { if (e.target.id === "use-suggest" && suggestion) { draft = { ...suggestion }; saveDraft(); renderSlots(); } });
+$("#slots").addEventListener("click", e => { const k = e.target.dataset.slot; if (k) { delete draft[k]; saveDraft(); renderSlots(); } });
+$("#save-outfit").onclick = async () => {
+  if (!Object.keys(draft).length) return toast("Add at least one item to the outfit first.");
+  const o = { id: "fit-" + Date.now().toString(36), name: $("#outfit-name").value.trim() || `Outfit ${outfits.length + 1}`, items: { ...draft }, created: new Date().toISOString() };
+  try { await putOutfit(o); $("#outfit-name").value = ""; toast(`Saved ${o.name}.`); } catch (e) { failed(e); }
 };
-$("#saved-outfits").addEventListener("click", e => {
-  const d = e.target.dataset;
-  if (d.load != null) { draft = { ...outfits[d.load].items }; save(); renderSlots(); }
-  if (d.wear != null) { Object.values(outfits[d.wear].items).forEach(id => { const i = byId(id); if (i) i.wear_count = (i.wear_count || 0) + 1; }); save(); renderAll(); }
-  if (d.drop != null && confirm("Delete this outfit? Items stay in your inventory.")) { outfits.splice(+d.drop, 1); save(); renderOutfits(); }
+$("#saved-outfits").addEventListener("click", async e => {
+  const d = e.target.dataset, o = outfits.find(x => x.id === (d.load || d.wear || d.drop));
+  if (!o) return;
+  if (d.load) { draft = { ...o.items }; saveDraft(); renderSlots(); toast(`Loaded ${o.name}.`); }
+  if (d.wear) {
+    try { for (const id of Object.values(o.items)) { const i = byId(id); if (i) await putItem({ ...i, wear_count: (i.wear_count || 0) + 1 }); } toast(`Logged a wear for ${o.name}.`); }
+    catch (err) { failed(err); }
+  }
+  if (d.drop && await ask(`Delete ${o.name}? Its items stay in your inventory.`, "Delete")) removeOutfit(o.id).catch(failed);
 });
 $("#nav").addEventListener("click", e => {
   const v = e.target.dataset.view; if (!v) return;
   document.querySelectorAll("#nav button").forEach(b => b.classList.toggle("active", b.dataset.view === v));
   ["wardrobe", "outfits", "insights"].forEach(x => $("#view-" + x).classList.toggle("hidden", x !== v));
 });
-$("#export").onclick = () => {
+$("#export").onclick = async () => {
+  const json = JSON.stringify(items, null, 2), filename = "digital-closet-inventory.json";
+  if (downloads) {
+    try { await downloads.save({ filename, data: json }); } catch (e) { if (e?.code !== "declined") toast("Export isn't available here."); }
+    return;
+  }
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(items, null, 2)], { type: "application/json" }));
-  a.download = "digital-closet-inventory.json"; a.click();
+  a.href = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+  a.download = filename; a.click();
 };
 $("#import").onchange = async e => {
+  const file = e.target.files[0]; e.target.value = "";
+  let data;
   try {
-    const data = JSON.parse(await e.target.files[0].text());
-    if (!Array.isArray(data) || !data.every(i => i.id && i.category && i.name)) throw 0;
-    if (confirm(`Replace your current ${items.length} items with ${data.length} imported items?`)) {
-      items = data.map(i => ({ ...i, zone: i.zone || ZONE_OF(i.category), status: i.status || "available" }));
-      selected = null; save(); renderAll();
-    }
-  } catch { alert("That file isn't a Digital Closet inventory export."); }
-  e.target.value = "";
+    data = JSON.parse(await file.text());
+    if (!Array.isArray(data) || !data.every(i => i && /^[A-Z]{3}-\d{3,}$/.test(i.id) && i.category && i.name)) throw 0;
+  } catch { return toast("That file isn't a Digital Closet inventory export."); }
+  if (!await ask(`Import ${data.length} items? Items with the same ID are replaced; others are kept.`, "Import")) return;
+  try {
+    for (const i of data) await putItem({ ...i, zone: i.zone || ZONE_OF(i.category), status: i.status || "available" });
+    toast(`Imported ${data.length} items.`);
+  } catch (err) { failed(err); }
 };
 
-renderAll();
+function startLocal() {
+  items = local.get("items", structuredClone(SEED));
+  outfits = local.get("outfits", []);
+  loaded = true; renderAll();
+}
+
+async function start() {
+  renderAll();
+  const c = window.claude;
+  if (!c?.use) return startLocal();
+  db = await c.use("db");
+  if (!db) return startLocal();
+  [assets, downloads] = await Promise.all([c.use("assets"), c.use("downloads")]);
+  if (!assets) $("[name=photo]").disabled = true;
+  $("#sync").textContent = "Saved to your private closet. Changes sync across your devices.";
+  db.collection("items").onSnapshot(snap => {
+    items = snap.docs.map(d => d.data()); loaded = true; renderAll();
+  }, () => { $("#sync").textContent = "Lost connection to your closet. Reload to reconnect."; });
+  db.collection("outfits").onSnapshot(snap => { outfits = snap.docs.map(d => d.data()); renderOutfits(); }, () => {});
+}
+start();
 </script>
 </body>
 </html>
