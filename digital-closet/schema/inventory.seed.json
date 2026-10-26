@@ -1,0 +1,76 @@
+[
+  {
+    "id": "OUT-001",
+    "owner": "founder",
+    "zone": "rail",
+    "category": "outerwear",
+    "name": "Gray Textured Overcoat",
+    "brand": {
+      "value": "Jack Victor",
+      "confidence": "verified",
+      "evidence": "Owner statement (not independent authentication); label photo pending"
+    },
+    "model": {
+      "value": null,
+      "confidence": "unknown",
+      "evidence": null
+    },
+    "color": {
+      "value": "Gray",
+      "confidence": "observed",
+      "evidence": null
+    },
+    "pattern": {
+      "value": "Textured",
+      "confidence": "observed",
+      "evidence": null
+    },
+    "material": {
+      "value": null,
+      "confidence": "unknown",
+      "evidence": "Wool-style appearance; fabric content unverified"
+    },
+    "size": {
+      "value": null,
+      "confidence": "unknown",
+      "evidence": null
+    },
+    "acquisition": "Gift from wife",
+    "valuation": {
+      "original_msrp": {
+        "amount": null,
+        "confidence": "unknown",
+        "source": "Unconfirmed"
+      },
+      "purchase_price": {
+        "amount": null,
+        "confidence": "unknown",
+        "source": null
+      },
+      "replacement_cost": {
+        "amount": null,
+        "confidence": "unknown",
+        "source": null
+      },
+      "resale_value": {
+        "amount": null,
+        "confidence": "unknown",
+        "source": "Not assessed"
+      },
+      "comparable_retail": {
+        "low": 1198,
+        "high": 1398,
+        "note": "Provisional range for comparable coats; not this coat's verified price"
+      }
+    },
+    "status": "available",
+    "formality": 4,
+    "seasons": [
+      "fall",
+      "winter"
+    ],
+    "wear_count": 0,
+    "photos": [],
+    "notes": null
+  }
+]

@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Digital Closet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --black: #0d0c0b;
+    --charcoal: #1b1917;
+    --panel: #221e1b;
+    --walnut: #3b2618;
+    --walnut-dark: #24170e;
+    --brass: #b8925a;
+    --champagne: #e3cfa3;
+    --cream: #f2ebdd;
+    --muted: #a39a8c;
+    --line: rgba(227, 207, 163, 0.18);
+    --observed: #7fa7c9;
+    --estimated: #d9a441;
+    --verified: #6fb38a;
+    --unknown: #7a736a;
+    --serif: "Cormorant Garamond", Georgia, serif;
+    --sans: Inter, system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--black); color: var(--cream); font: 14px/1.5 var(--sans); }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  .btn { background: transparent; border: 1px solid var(--brass); color: var(--champagne); padding: 7px 14px; border-radius: 3px; }
+  .btn:hover { background: rgba(184, 146, 90, 0.15); }
+  .btn.solid { background: var(--brass); color: var(--black); font-weight: 600; }
+  .btn.small { padding: 3px 9px; font-size: 12px; }
+  input, select, textarea { background: var(--charcoal); border: 1px solid var(--line); border-radius: 3px; padding: 7px 9px; width: 100%; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+
+  header { display: flex; align-items: center; gap: 24px; padding: 14px 24px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .logo { font-family: var(--serif); font-size: 26px; letter-spacing: 0.06em; color: var(--champagne); }
+  nav { display: flex; gap: 4px; flex-wrap: wrap; }
+  nav button { background: none; border: 0; padding: 6px 10px; color: var(--muted); border-bottom: 2px solid transparent; }
+  nav button.active { color: var(--champagne); border-bottom-color: var(--brass); }
+  nav button[disabled] { opacity: 0.35; cursor: default; }
+  .closet-only { margin-left: auto; font-size: 12px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+  .closet-only b { color: var(--verified); }
+
+  main { display: grid; grid-template-columns: 1fr 340px; min-height: calc(100vh - 62px); }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .stage { padding: 20px 24px; overflow: hidden; }
+  aside { border-left: 1px solid var(--line); background: var(--panel); padding: 20px; }
+  @media (max-width: 900px) { aside { border-left: 0; border-top: 1px solid var(--line); } }
+
+  .toolbar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .toolbar input { flex: 1 1 200px; width: auto; }
+  .toolbar select { width: auto; }
+
+  .closet { background: linear-gradient(180deg, var(--walnut) 0%, var(--walnut-dark) 100%); border-radius: 6px; padding: 18px; box-shadow: inset 0 0 60px rgba(0,0,0,0.6); }
+  .zone { margin-bottom: 18px; }
+  .zone:last-child { margin-bottom: 0; }
+  .zone h3 { font-family: var(--serif); font-weight: 500; font-size: 17px; color: var(--champagne); margin: 0 0 8px; letter-spacing: 0.04em; }
+  .zone .empty { color: var(--muted); font-size: 12px; font-style: italic; padding: 10px 0; }
+
+  .rail { position: relative; padding-top: 14px; min-height: 230px; }
+  .rail::before { content: ""; position: absolute; top: 6px; left: 0; right: 0; height: 6px; border-radius: 3px; background: linear-gradient(180deg, #e8cf95, var(--brass) 50%, #7a5c2e); box-shadow: 0 6px 18px rgba(255, 210, 140, 0.18); }
+  .rail .items { display: flex; gap: 6px; overflow-x: auto; padding: 0 8px 10px; }
+  .hanger { flex: 0 0 auto; width: 110px; background: none; border: 0; padding: 0; text-align: center; transition: transform 0.2s; }
+  .hanger:hover, .hanger.selected { transform: translateY(6px) scale(1.04); }
+  .hanger svg { display: block; margin: 0 auto; filter: drop-shadow(0 8px 10px rgba(0,0,0,0.5)); }
+  .hanger .tag, .slot-item .tag { font-size: 11px; color: var(--cream); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hanger.unavailable, .slot-item.unavailable { opacity: 0.4; }
+
+  .drawers, .shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+  .drawers { background: rgba(0,0,0,0.25); padding: 10px; border-radius: 4px; border-top: 2px solid var(--brass); }
+  .shelf { padding: 10px; border-radius: 4px; background: rgba(0,0,0,0.3); border-bottom: 4px solid var(--walnut-dark); }
+  .shelf.lit { background: radial-gradient(ellipse at top, rgba(255, 220, 160, 0.18), rgba(0,0,0,0.35) 70%); }
+  .slot-item { background: var(--charcoal); border: 1px solid var(--line); border-radius: 4px; padding: 8px; text-align: center; }
+  .slot-item:hover, .slot-item.selected { border-color: var(--brass); }
+  .slot-item svg { display: block; margin: 0 auto; }
+
+  .badge { display: inline-block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; padding: 1px 6px; border-radius: 10px; border: 1px solid; margin-left: 6px; vertical-align: middle; }
+  .badge.observed { color: var(--observed); }
+  .badge.estimated { color: var(--estimated); }
+  .badge.verified { color: var(--verified); }
+  .badge.unknown { color: var(--unknown); }
+
+  aside h2 { font-family: var(--serif); font-weight: 500; font-size: 24px; margin: 0 0 4px; color: var(--champagne); }
+  aside .sub { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
+  dl { margin: 0; display: grid; grid-template-columns: 110px 1fr; gap: 6px 10px; font-size: 13px; }
+  dt { color: var(--muted); }
+  dd { margin: 0; }
+  .ev { display: block; color: var(--muted); font-size: 11px; }
+  .note { font-size: 12px; color: var(--estimated); border-left: 2px solid var(--estimated); padding-left: 8px; margin: 12px 0; }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 16px; }
+  .photo { width: 100%; border-radius: 4px; margin-bottom: 12px; }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 18px 0; }
+
+  .outfit-slots { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .outfit-slot { border: 1px dashed var(--line); border-radius: 4px; padding: 6px 8px; font-size: 12px; min-height: 44px; }
+  .outfit-slot .k { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .outfit-slot .x { float: right; background: none; border: 0; color: var(--muted); }
+  .card { background: var(--charcoal); border: 1px solid var(--line); border-radius: 5px; padding: 14px; margin-bottom: 10px; }
+  .card h4 { margin: 0 0 6px; font-family: var(--serif); font-size: 19px; font-weight: 500; color: var(--champagne); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .stat { background: var(--charcoal); border: 1px solid var(--line); border-radius: 5px; padding: 14px; }
+  .stat .n { font-family: var(--serif); font-size: 30px; color: var(--champagne); }
+  .stat .l { color: var(--muted); font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 500; }
+
+  dialog { background: var(--panel); color: var(--cream); border: 1px solid var(--brass); border-radius: 6px; width: min(560px, calc(100vw - 32px)); padding: 22px; }
+  dialog::backdrop { background: rgba(0,0,0,0.7); }
+  dialog h2 { font-family: var(--serif); font-weight: 500; margin: 0 0 6px; color: var(--champagne); }
+  .row { display: grid; grid-template-columns: 1fr 130px; gap: 8px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .seasons { display: flex; gap: 12px; flex-wrap: wrap; font-size: 13px; }
+  .seasons label { display: flex; gap: 4px; align-items: center; margin: 0; color: var(--cream); }
+  .seasons input { width: auto; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">DIGITAL CLOSET</div>
+  <nav id="nav">
+    <button data-view="wardrobe" class="active">My Wardrobe</button>
+    <button data-view="outfits">Outfits</button>
+    <button data-view="insights">Wardrobe Insights</button>
+    <button disabled title="Wave 3">Date Night</button>
+    <button disabled title="Wave 3">Events</button>
+    <button disabled title="Wave 4">Family</button>
+  </nav>
+  <div class="closet-only">Focused Mode · <b>Closet Only</b> — recommendations use owned items only</div>
+</header>
+
+<main>
+  <section class="stage">
+    <div id="view-wardrobe">
+      <div class="toolbar">
+        <input id="q" type="search" placeholder="Search brand, color, name, id…">
+        <select id="f-zone">
+          <option value="">All zones</option>
+          <option value="rail">Hanging rail</option>
+          <option value="drawer">Drawers</option>
+          <option value="accessory">Accessories</option>
+          <option value="footwear">Footwear</option>
+          <option value="fragrance">Fragrance</option>
+        </select>
+        <select id="f-status">
+          <option value="">Any status</option>
+          <option value="available">Available only</option>
+        </select>
+        <button class="btn solid" id="add-btn">+ Add item</button>
+      </div>
+      <div class="closet" id="closet"></div>
+    </div>
+
+    <div id="view-outfits" class="hidden">
+      <div class="card">
+        <h4>Put something together</h4>
+        <p style="margin:0 0 10px;color:var(--muted);font-size:13px">Rule-based suggestion from available items you own. AI styling arrives with Wave 1's recommendation service.</p>
+        <div class="row2">
+          <select id="occasion">
+            <option value="2">Everyday / casual</option>
+            <option value="1">Athletic / athleisure</option>
+            <option value="3">Elevated casual / dinner</option>
+            <option value="4">Business / evening</option>
+            <option value="5">Formal</option>
+          </select>
+          <select id="season">
+            <option value="">Any season</option>
+            <option>spring</option><option>summer</option><option>fall</option><option>winter</option>
+          </select>
+        </div>
+        <div class="actions"><button class="btn solid" id="suggest">Suggest outfit</button></div>
+        <div id="suggest-out" style="margin-top:10px;font-size:13px"></div>
+      </div>
+      <div id="saved-outfits"></div>
+    </div>
+
+    <div id="view-insights" class="hidden"></div>
+  </section>
+
+  <aside>
+    <div id="detail"><h2>Select an item</h2><div class="sub">Choose a garment on the rack to see its inventory record.</div></div>
+    <hr>
+    <h2 style="font-size:20px">Outfit in progress</h2>
+    <div class="outfit-slots" id="slots"></div>
+    <div class="actions">
+      <input id="outfit-name" placeholder="Outfit name" style="flex:1 1 140px;width:auto">
+      <button class="btn small" id="save-outfit">Save outfit</button>
+    </div>
+    <hr>
+    <div class="actions">
+      <button class="btn small" id="export">Export inventory JSON</button>
+      <label class="btn small" style="margin:0;color:var(--champagne)">Import<input type="file" id="import" accept="application/json" hidden></label>
+    </div>
+  </aside>
+</main>
+
+<dialog id="dlg">
+  <form id="form" method="dialog">
+    <h2 id="dlg-title">Add item</h2>
+    <div class="sub" style="color:var(--muted);font-size:12px">Mark each detail as observed (visible), estimated (a guess), or verified (label, receipt, documentation, or your confirmation).</div>
+    <label>Photo (optional)</label><input type="file" name="photo" accept="image/*">
+    <div class="row2">
+      <div><label>Name</label><input name="name" required placeholder="Gray Textured Overcoat"></div>
+      <div><label>Category</label><select name="category" required></select></div>
+    </div>
+    <div id="attr-fields"></div>
+    <div class="row2">
+      <div><label>Status</label><select name="status">
+        <option value="available">Available</option><option value="laundry">In laundry</option>
+        <option value="needs_cleaning">Needs cleaning</option><option value="storage">In storage</option>
+        <option value="needs_repair">Needs repair</option><option value="unavailable">Temporarily unavailable</option>
+      </select></div>
+      <div><label>Formality (1 athletic – 5 formal)</label><input name="formality" type="number" min="1" max="5" value="3"></div>
+    </div>
+    <label>Seasons</label>
+    <div class="seasons">
+      <label><input type="checkbox" name="seasons" value="spring">Spring</label>
+      <label><input type="checkbox" name="seasons" value="summer">Summer</label>
+      <label><input type="checkbox" name="seasons" value="fall">Fall</label>
+      <label><input type="checkbox" name="seasons" value="winter">Winter</label>
+    </div>
+    <div class="row2">
+      <div><label>Purchase price (USD, actual)</label><input name="purchase_price" type="number" min="0" step="0.01"></div>
+      <div><label>Acquisition</label><input name="acquisition" placeholder="Gift, store, outlet…"></div>
+    </div>
+    <label>Notes</label><textarea name="notes" rows="2"></textarea>
+    <div class="actions" style="justify-content:flex-end">
+      <button class="btn" value="cancel" formnovalidate>Cancel</button>
+      <button class="btn solid" value="save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const ZONES = {
+  rail: { label: "Hanging Rail", cats: ["outerwear", "jacket", "shirt", "sweater", "suit"] },
+  drawer: { label: "Drawers", cats: ["tshirt", "pants", "denim", "knitwear", "underwear", "socks"] },
+  accessory: { label: "Accessory Storage", cats: ["watch", "bracelet", "jewelry", "sunglasses", "belt", "accessory"] },
+  footwear: { label: "Footwear Collection", cats: ["sneakers", "boots", "loafers", "dress_shoes", "athletic_shoes"] },
+  fragrance: { label: "Fragrance Display", cats: ["fragrance"] }
+};
+const CAT_LABEL = c => c.replace("_", " ").replace(/^./, s => s.toUpperCase());
+const ZONE_OF = c => Object.keys(ZONES).find(z => ZONES[z].cats.includes(c));
+const PREFIX = { rail: "TOP", drawer: "DRW", accessory: "ACC", footwear: "SHO", fragrance: "FRG", outerwear: "OUT", jacket: "OUT", pants: "BOT", denim: "BOT" };
+const SLOTS = [
+  ["outer", "Outer layer", ["outerwear", "jacket", "suit"]],
+  ["top", "Top", ["shirt", "sweater", "tshirt", "knitwear"]],
+  ["bottom", "Bottom", ["pants", "denim"]],
+  ["shoes", "Footwear", ZONES.footwear.cats],
+  ["acc", "Accessory", ZONES.accessory.cats],
+  ["scent", "Fragrance", ["fragrance"]]
+];
+const ATTRS = ["brand", "model", "color", "material"];
+const STATUS_LABEL = { available: "Available", laundry: "In laundry", needs_cleaning: "Needs cleaning", storage: "In storage", needs_repair: "Needs repair", unavailable: "Temporarily unavailable" };
+
+// Mirrors schema/inventory.seed.json.
+const SEED = [{
+  id: "OUT-001", owner: "founder", zone: "rail", category: "outerwear", name: "Gray Textured Overcoat",
+  brand: { value: "Jack Victor", confidence: "verified", evidence: "Owner statement (not independent authentication); label photo pending" },
+  model: { value: null, confidence: "unknown", evidence: null },
+  color: { value: "Gray", confidence: "observed", evidence: null },
+  pattern: { value: "Textured", confidence: "observed", evidence: null },
+  material: { value: null, confidence: "unknown", evidence: "Wool-style appearance; fabric content unverified" },
+  size: { value: null, confidence: "unknown", evidence: null },
+  acquisition: "Gift from wife",
+  valuation: {
+    original_msrp: { amount: null, confidence: "unknown", source: "Unconfirmed" },
+    purchase_price: { amount: null, confidence: "unknown", source: null },
+    replacement_cost: { amount: null, confidence: "unknown", source: null },
+    resale_value: { amount: null, confidence: "unknown", source: "Not assessed" },
+    comparable_retail: { low: 1198, high: 1398, note: "Provisional range for comparable coats; not this coat's verified price" }
+  },
+  status: "available", formality: 4, seasons: ["fall", "winter"], wear_count: 0, photos: [], notes: null
+}];
+
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("dc." + k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("dc." + k, JSON.stringify(v)); return true; } catch { return false; } }
+};
+let items = store.get("items", structuredClone(SEED));
+let outfits = store.get("outfits", []);
+let draft = store.get("draft", {});
+let selected = null;
+let editing = null;
+const save = () => {
+  if (!store.set("items", items)) alert("Could not save to this browser (storage full or blocked). Export your inventory to keep it.");
+  store.set("outfits", outfits); store.set("draft", draft);
+};
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const money = n => n == null ? null : "$" + Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
+const byId = id => items.find(i => i.id === id);
+
+const NAMED = { black: "#1a1a1a", white: "#eeeae2", cream: "#e9dfc8", ivory: "#efe7d2", gray: "#7d7f82", grey: "#7d7f82", charcoal: "#3a3b3d", navy: "#1f2a44", blue: "#3b5c8c", denim: "#3f5878", brown: "#6b4630", tan: "#b08a5f", camel: "#b48a56", khaki: "#b5a57a", olive: "#5d6239", green: "#3e6146", burgundy: "#6b1f2c", red: "#9c2b2b", pink: "#d49aa5", purple: "#5b3d6b", yellow: "#d9b440", orange: "#c46a2c", silver: "#c0c3c6", gold: "#c9a24f", beige: "#d6c6a5" };
+function fabric(item) {
+  const c = (item.color?.value || "").toLowerCase();
+  const hit = Object.keys(NAMED).find(k => c.includes(k));
+  if (hit) return NAMED[hit];
+  let h = 0; for (const ch of item.id) h = (h * 31 + ch.charCodeAt(0)) % 360;
+  return `hsl(${h} 12% 40%)`;
+}
+
+function silhouette(item, w = 96) {
+  const f = fabric(item), tex = item.pattern?.value ? `<rect width="100%" height="100%" fill="url(#tex)" opacity=".35"/>` : "";
+  const defs = `<defs><pattern id="tex" width="4" height="4" patternUnits="userSpaceOnUse"><path d="M0 4L4 0" stroke="#000" stroke-width=".6"/></pattern><linearGradient id="sh" x1="0" x2="1"><stop offset="0" stop-color="#000" stop-opacity=".35"/><stop offset=".5" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#000" stop-opacity=".35"/></linearGradient></defs>`;
+  const hook = `<path d="M50 2 q6 0 6 6 q0 5-6 7" fill="none" stroke="#c9a96a" stroke-width="2"/><path d="M14 30 L50 15 L86 30" fill="none" stroke="#8a5a32" stroke-width="5" stroke-linecap="round"/>`;
+  const shapes = {
+    outerwear: "M30 28 L50 22 L70 28 L84 38 L88 150 L74 150 L72 70 L72 190 L28 190 L28 70 L26 150 L12 150 L16 38 Z",
+    jacket: "M30 28 L50 22 L70 28 L84 38 L88 120 L74 120 L72 70 L72 140 L28 140 L28 70 L26 120 L12 120 L16 38 Z",
+    suit: "M30 28 L50 22 L70 28 L84 38 L88 125 L74 125 L72 70 L72 145 L28 145 L28 70 L26 125 L12 125 L16 38 Z",
+    shirt: "M32 28 L50 24 L68 28 L84 40 L88 110 L76 110 L72 66 L72 140 L28 140 L28 66 L24 110 L12 110 L16 40 Z",
+    sweater: "M32 28 L50 24 L68 28 L84 40 L90 118 L78 120 L72 66 L72 136 L28 136 L28 66 L22 120 L10 118 L16 40 Z"
+  };
+  if (item.zone === "rail") {
+    const d = shapes[item.category] || shapes.shirt;
+    const lapel = ["outerwear", "jacket", "suit"].includes(item.category) ? `<path d="M50 24 L42 60 L50 90 L58 60 Z" fill="#000" opacity=".25"/><line x1="50" y1="90" x2="50" y2="${item.category === "outerwear" ? 188 : 140}" stroke="#000" opacity=".3"/>` : "";
+    return `<svg width="${w}" height="${w * 2}" viewBox="0 0 100 200">${defs}${hook}<clipPath id="c-${item.id}"><path d="${d}"/></clipPath><g clip-path="url(#c-${item.id})"><rect width="100" height="200" fill="${f}"/>${tex}<rect width="100" height="200" fill="url(#sh)"/></g>${lapel}</svg>`;
+  }
+  const small = {
+    drawer: `<rect x="14" y="30" width="72" height="40" rx="4" fill="${f}"/><rect x="14" y="30" width="72" height="40" rx="4" fill="url(#sh)"/><line x1="14" y1="44" x2="86" y2="44" stroke="#000" opacity=".25"/>`,
+    footwear: `<path d="M10 62 L14 40 Q30 38 44 46 L70 52 Q90 56 90 66 L90 72 L10 72 Z" fill="${f}"/><rect x="10" y="68" width="80" height="6" rx="2" fill="#eee" opacity=".8"/>`,
+    accessory: `<circle cx="50" cy="50" r="22" fill="none" stroke="${f}" stroke-width="7"/><circle cx="50" cy="50" r="14" fill="#111" stroke="#c9a96a"/>`,
+    fragrance: `<rect x="44" y="18" width="12" height="10" fill="#c9a96a"/><rect x="30" y="28" width="40" height="50" rx="6" fill="${f}" opacity=".75"/><rect x="30" y="28" width="40" height="50" rx="6" fill="url(#sh)"/>`
+  };
+  return `<svg width="${w * 0.8}" height="${w * 0.8}" viewBox="0 0 100 90">${defs}${small[item.zone] || small.drawer}</svg>`;
+}
+
+function filtered() {
+  const q = $("#q").value.trim().toLowerCase(), z = $("#f-zone").value, s = $("#f-status").value;
+  return items.filter(i => (!z || i.zone === z) && (!s || i.status === s) &&
+    (!q || [i.id, i.name, i.category, i.brand?.value, i.color?.value, i.material?.value, i.notes].join(" ").toLowerCase().includes(q)));
+}
+
+function renderCloset() {
+  const list = filtered();
+  $("#closet").innerHTML = Object.entries(ZONES).map(([z, meta]) => {
+    const zi = list.filter(i => i.zone === z);
+    if ($("#f-zone").value && $("#f-zone").value !== z) return "";
+    const cls = i => `${i.id === selected ? "selected" : ""} ${i.status !== "available" ? "unavailable" : ""}`;
+    const tip = i => esc(`${i.name} · ${STATUS_LABEL[i.status]}`);
+    let body;
+    if (!zi.length) body = `<div class="empty">Nothing here yet.</div>`;
+    else if (z === "rail") body = `<div class="items">${zi.map(i => `<button class="hanger ${cls(i)}" data-id="${i.id}" title="${tip(i)}">${silhouette(i)}<div class="tag">${esc(i.name)}</div></button>`).join("")}</div>`;
+    else body = zi.map(i => `<button class="slot-item ${cls(i)}" data-id="${i.id}" title="${tip(i)}">${silhouette(i)}<div class="tag">${esc(i.name)}</div></button>`).join("");
+    const wrap = z === "rail" ? "rail" : z === "drawer" ? "drawers" : z === "fragrance" ? "shelf lit" : "shelf";
+    return `<div class="zone"><h3>${meta.label}</h3><div class="${wrap}">${body}</div></div>`;
+  }).join("");
+}
+
+const badge = c => `<span class="badge ${c}">${c === "unknown" ? "unverified" : c}</span>`;
+function attrRow(label, a) {
+  if (!a) return "";
+  return `<dt>${label}</dt><dd>${a.value ? esc(a.value) : "<span style='color:var(--muted)'>—</span>"}${badge(a.confidence)}${a.evidence ? `<span class="ev">${esc(a.evidence)}</span>` : ""}</dd>`;
+}
+function moneyRow(label, m, fallback) {
+  const v = m?.amount != null ? money(m.amount) + badge(m.confidence) : `<span style="color:var(--muted)">${esc(m?.source || fallback)}</span>`;
+  return `<dt>${label}</dt><dd>${v}</dd>`;
+}
+
+function renderDetail() {
+  const i = byId(selected);
+  if (!i) { $("#detail").innerHTML = `<h2>Select an item</h2><div class="sub">Choose a garment on the rack to see its inventory record.</div>`; return; }
+  const v = i.valuation || {};
+  const paid = v.purchase_price?.amount;
+  const cpw = paid != null && i.wear_count ? money(paid / i.wear_count) : null;
+  $("#detail").innerHTML = `
+    ${i.photos?.[0] ? `<img class="photo" src="${i.photos[0]}" alt="">` : ""}
+    <h2>${esc(i.name)}</h2>
+    <div class="sub">${esc(i.id)} · ${CAT_LABEL(i.category)} · ${ZONES[i.zone].label}</div>
+    <dl>
+      ${ATTRS.map(a => attrRow(CAT_LABEL(a), i[a])).join("")}
+      ${attrRow("Pattern", i.pattern)}
+      ${attrRow("Size", i.size)}
+      <dt>Acquisition</dt><dd>${esc(i.acquisition || "—")}</dd>
+      <dt>Status</dt><dd><select id="status-sel" style="padding:3px 6px">${Object.entries(STATUS_LABEL).map(([k, l]) => `<option value="${k}" ${k === i.status ? "selected" : ""}>${l}</option>`).join("")}</select></dd>
+      <dt>Worn</dt><dd>${i.wear_count || 0} time${i.wear_count === 1 ? "" : "s"}${cpw ? ` · ${cpw} per wear` : ""}</dd>
+      ${moneyRow("Original MSRP", v.original_msrp, "Unconfirmed")}
+      ${moneyRow("Purchase price", v.purchase_price, "Not recorded")}
+      ${moneyRow("Replacement", v.replacement_cost, "Not estimated")}
+      ${moneyRow("Resale value", v.resale_value, "Not assessed")}
+      ${v.comparable_retail ? `<dt>Comparable retail</dt><dd>${money(v.comparable_retail.low)}–${money(v.comparable_retail.high)}${badge("estimated")}</dd>` : ""}
+    </dl>
+    ${v.comparable_retail ? `<div class="note">${esc(v.comparable_retail.note || "Comparable range is provisional and is not this item's verified price.")}</div>` : ""}
+    ${i.notes ? `<p style="font-size:13px">${esc(i.notes)}</p>` : ""}
+    <div class="actions">
+      <button class="btn small solid" id="to-outfit">Add to outfit</button>
+      <button class="btn small" id="wore">Wore it today</button>
+      <button class="btn small" id="edit">Edit</button>
+      <button class="btn small" id="del">Remove</button>
+    </div>`;
+  $("#status-sel").onchange = e => { i.status = e.target.value; save(); renderAll(); };
+  $("#wore").onclick = () => { i.wear_count = (i.wear_count || 0) + 1; save(); renderAll(); };
+  $("#to-outfit").onclick = () => addToOutfit(i);
+  $("#edit").onclick = () => openForm(i);
+  $("#del").onclick = () => {
+    if (!confirm(`Remove ${i.name} (${i.id}) from your inventory?`)) return;
+    items = items.filter(x => x.id !== i.id);
+    for (const k in draft) if (draft[k] === i.id) delete draft[k];
+    selected = null; save(); renderAll();
+  };
+}
+
+function slotFor(cat) { return SLOTS.find(s => s[2].includes(cat))?.[0]; }
+function addToOutfit(i) { const s = slotFor(i.category); if (!s) return; draft[s] = i.id; save(); renderSlots(); }
+function renderSlots() {
+  $("#slots").innerHTML = SLOTS.map(([k, l]) => {
+    const i = byId(draft[k]);
+    return `<div class="outfit-slot"><div class="k">${l}${i ? `<button class="x" data-slot="${k}" title="Remove">×</button>` : ""}</div>${i ? esc(i.name) : "<span style='color:var(--muted)'>—</span>"}</div>`;
+  }).join("");
+}
+
+function suggest() {
+  const target = +$("#occasion").value, season = $("#season").value;
+  const pool = items.filter(i => i.status === "available" && (!season || !i.seasons?.length || i.seasons.includes(season)));
+  const pick = {}, missing = [];
+  for (const [k, l, cats] of SLOTS) {
+    const opts = pool.filter(i => cats.includes(i.category))
+      .sort((a, b) => Math.abs((a.formality ?? 3) - target) - Math.abs((b.formality ?? 3) - target) || (a.wear_count || 0) - (b.wear_count || 0));
+    if (opts.length && Math.abs((opts[0].formality ?? 3) - target) <= 1) pick[k] = opts[0].id;
+    else if (k !== "outer" && k !== "acc" && k !== "scent") missing.push(l.toLowerCase());
+  }
+  const names = Object.values(pick).map(id => esc(byId(id).name));
+  $("#suggest-out").innerHTML = names.length
+    ? `<div>${names.join(" · ")}</div>${missing.length ? `<div style="color:var(--muted);margin-top:4px">No available ${missing.join(", ")} at this formality — add more of what you own to fill the gap.</div>` : ""}<div class="actions"><button class="btn small" id="use-suggest">Use as outfit in progress</button></div>`
+    : `<span style="color:var(--muted)">Nothing available fits yet. Add more items you own to the rack.</span>`;
+  const use = $("#use-suggest"); if (use) use.onclick = () => { draft = pick; save(); renderSlots(); };
+}
+
+function renderOutfits() {
+  $("#saved-outfits").innerHTML = outfits.length ? outfits.map((o, n) => `
+    <div class="card"><h4>${esc(o.name)}</h4>
+      <div style="font-size:13px">${Object.entries(o.items).map(([k, id]) => { const i = byId(id); return i ? `${esc(i.name)}${i.status !== "available" ? ` <span class="badge unknown">${STATUS_LABEL[i.status]}</span>` : ""}` : `<span style="color:var(--muted)">${esc(id)} (removed)</span>`; }).join(" · ")}</div>
+      <div class="actions"><button class="btn small" data-load="${n}">Load</button><button class="btn small" data-wear="${n}">Wore this today</button><button class="btn small" data-drop="${n}">Delete</button></div>
+    </div>`).join("") : `<div class="card"><span style="color:var(--muted)">No saved outfits yet. Build one from the rack and save it in the side panel.</span></div>`;
+}
+
+function renderInsights() {
+  const byZone = Object.fromEntries(Object.keys(ZONES).map(z => [z, items.filter(i => i.zone === z).length]));
+  const paid = items.filter(i => i.valuation?.purchase_price?.amount != null);
+  const paidSum = paid.reduce((s, i) => s + i.valuation.purchase_price.amount, 0);
+  const avail = items.filter(i => i.status === "available").length;
+  const brands = {}; items.forEach(i => { const b = i.brand?.value; if (b) brands[b] = (brands[b] || 0) + 1; });
+  const unworn = items.filter(i => !i.wear_count);
+  const unverified = items.filter(i => ["brand", "color", "material"].some(a => !i[a] || i[a].confidence !== "verified" && i[a].confidence !== "observed"));
+  $("#view-insights").innerHTML = `
+    <div class="stats">
+      <div class="stat"><div class="n">${items.length}</div><div class="l">Items owned</div></div>
+      <div class="stat"><div class="n">${avail}</div><div class="l">Available to wear now</div></div>
+      <div class="stat"><div class="n">${paid.length ? money(paidSum) : "—"}</div><div class="l">Recorded purchase prices (${paid.length} of ${items.length} items)</div></div>
+      <div class="stat"><div class="n">${unworn.length}</div><div class="l">Never logged as worn</div></div>
+    </div>
+    <div class="card"><h4>By zone</h4><table><tr><th>Zone</th><th>Items</th></tr>${Object.entries(byZone).map(([z, n]) => `<tr><td>${ZONES[z].label}</td><td>${n}</td></tr>`).join("")}</table></div>
+    <div class="card"><h4>By brand</h4>${Object.keys(brands).length ? `<table><tr><th>Brand</th><th>Items</th></tr>${Object.entries(brands).sort((a, b) => b[1] - a[1]).map(([b, n]) => `<tr><td>${esc(b)}</td><td>${n}</td></tr>`).join("")}</table>` : `<span style="color:var(--muted)">No brands recorded.</span>`}</div>
+    <div class="card"><h4>Needs verification</h4><div style="font-size:13px">${unverified.length ? unverified.map(i => `${esc(i.id)} ${esc(i.name)}`).join("<br>") : "Every item's brand, color, and material is observed or verified."}</div></div>
+    <div class="card"><h4>Cost per wear</h4><table><tr><th>Item</th><th>Paid</th><th>Wears</th><th>Per wear</th></tr>${paid.length ? paid.map(i => `<tr><td>${esc(i.name)}</td><td>${money(i.valuation.purchase_price.amount)}</td><td>${i.wear_count || 0}</td><td>${i.wear_count ? money(i.valuation.purchase_price.amount / i.wear_count) : "—"}</td></tr>`).join("") : `<tr><td colspan="4" style="color:var(--muted)">Record a purchase price on an item to track cost per wear.</td></tr>`}</table>
+      <div style="color:var(--muted);font-size:12px;margin-top:8px">Uses actual purchase price only — never MSRP or comparable retail.</div></div>`;
+}
+
+function nextId(cat) {
+  const p = PREFIX[cat] || PREFIX[ZONE_OF(cat)];
+  const n = Math.max(0, ...items.filter(i => i.id.startsWith(p + "-")).map(i => +i.id.split("-")[1]));
+  return `${p}-${String(n + 1).padStart(3, "0")}`;
+}
+
+const CONF_OPTS = ["observed", "estimated", "verified", "unknown"];
+function openForm(item) {
+  editing = item || null;
+  const f = $("#form");
+  f.reset();
+  $("#dlg-title").textContent = item ? `Edit ${item.id}` : "Add item";
+  f.category.innerHTML = Object.entries(ZONES).map(([z, m]) => `<optgroup label="${m.label}">${m.cats.map(c => `<option value="${c}">${CAT_LABEL(c)}</option>`).join("")}</optgroup>`).join("");
+  $("#attr-fields").innerHTML = ATTRS.map(a => `<label>${CAT_LABEL(a)}</label><div class="row"><input name="${a}" placeholder="${a === "brand" ? "Only if label or receipt shows it" : ""}"><select name="${a}_c">${CONF_OPTS.map(c => `<option value="${c}">${c === "unknown" ? "unverified" : c}</option>`).join("")}</select></div>`).join("");
+  if (item) {
+    f.name.value = item.name; f.category.value = item.category; f.status.value = item.status;
+    f.formality.value = item.formality ?? 3; f.acquisition.value = item.acquisition || ""; f.notes.value = item.notes || "";
+    f.purchase_price.value = item.valuation?.purchase_price?.amount ?? "";
+    ATTRS.forEach(a => { f[a].value = item[a]?.value || ""; f[a + "_c"].value = item[a]?.confidence || "unknown"; });
+    f.querySelectorAll("[name=seasons]").forEach(cb => cb.checked = item.seasons?.includes(cb.value));
+  } else {
+    ATTRS.forEach(a => f[a + "_c"].value = a === "color" ? "observed" : "estimated");
+  }
+  $("#dlg").showModal();
+}
+
+function downscale(file) {
+  return new Promise(res => {
+    if (!file) return res(null);
+    const img = new Image(), r = new FileReader();
+    r.onload = () => { img.src = r.result; };
+    img.onload = () => {
+      const s = Math.min(1, 480 / Math.max(img.width, img.height)), c = document.createElement("canvas");
+      c.width = img.width * s; c.height = img.height * s;
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      res(c.toDataURL("image/jpeg", 0.8));
+    };
+    img.onerror = () => res(null);
+    r.readAsDataURL(file);
+  });
+}
+
+$("#dlg").addEventListener("close", async () => {
+  if ($("#dlg").returnValue !== "save") return;
+  const f = $("#form"), cat = f.category.value, zone = ZONE_OF(cat);
+  const base = editing || { id: nextId(cat), owner: "founder", wear_count: 0, photos: [], valuation: {}, pattern: { value: null, confidence: "unknown", evidence: null }, size: { value: null, confidence: "unknown", evidence: null } };
+  const rec = { ...base, name: f.name.value.trim(), category: cat, zone, status: f.status.value,
+    formality: Math.min(5, Math.max(1, +f.formality.value || 3)),
+    seasons: [...f.querySelectorAll("[name=seasons]:checked")].map(cb => cb.value),
+    acquisition: f.acquisition.value.trim() || null, notes: f.notes.value.trim() || null };
+  ATTRS.forEach(a => {
+    const v = f[a].value.trim() || null;
+    const prev = base[a];
+    rec[a] = { value: v, confidence: v ? f[a + "_c"].value : "unknown", evidence: prev && prev.value === v ? prev.evidence ?? null : null };
+  });
+  const pp = f.purchase_price.value;
+  rec.valuation = { ...base.valuation, purchase_price: pp === "" ? { amount: null, confidence: "unknown", source: null } : { amount: +pp, confidence: "verified", source: "Owner-entered" } };
+  const photo = await downscale(f.photo.files[0]);
+  if (photo) rec.photos = [photo, ...(base.photos || [])].slice(0, 3);
+  if (editing) items = items.map(i => i.id === editing.id ? rec : i); else items.push(rec);
+  selected = rec.id; save(); renderAll();
+});
+
+function renderAll() { renderCloset(); renderDetail(); renderSlots(); renderOutfits(); renderInsights(); }
+
+$("#closet").addEventListener("click", e => { const b = e.target.closest("[data-id]"); if (b) { selected = b.dataset.id; renderCloset(); renderDetail(); } });
+["#q", "#f-zone", "#f-status"].forEach(s => $(s).addEventListener("input", renderCloset));
+$("#add-btn").onclick = () => openForm();
+$("#suggest").onclick = suggest;
+$("#slots").addEventListener("click", e => { const k = e.target.dataset.slot; if (k) { delete draft[k]; save(); renderSlots(); } });
+$("#save-outfit").onclick = () => {
+  if (!Object.keys(draft).length) return alert("Add at least one item to the outfit first.");
+  outfits.unshift({ name: $("#outfit-name").value.trim() || `Outfit ${outfits.length + 1}`, items: { ...draft }, created: new Date().toISOString() });
+  $("#outfit-name").value = ""; save(); renderOutfits();
+};
+$("#saved-outfits").addEventListener("click", e => {
+  const d = e.target.dataset;
+  if (d.load != null) { draft = { ...outfits[d.load].items }; save(); renderSlots(); }
+  if (d.wear != null) { Object.values(outfits[d.wear].items).forEach(id => { const i = byId(id); if (i) i.wear_count = (i.wear_count || 0) + 1; }); save(); renderAll(); }
+  if (d.drop != null && confirm("Delete this outfit? Items stay in your inventory.")) { outfits.splice(+d.drop, 1); save(); renderOutfits(); }
+});
+$("#nav").addEventListener("click", e => {
+  const v = e.target.dataset.view; if (!v) return;
+  document.querySelectorAll("#nav button").forEach(b => b.classList.toggle("active", b.dataset.view === v));
+  ["wardrobe", "outfits", "insights"].forEach(x => $("#view-" + x).classList.toggle("hidden", x !== v));
+});
+$("#export").onclick = () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(items, null, 2)], { type: "application/json" }));
+  a.download = "digital-closet-inventory.json"; a.click();
+};
+$("#import").onchange = async e => {
+  try {
+    const data = JSON.parse(await e.target.files[0].text());
+    if (!Array.isArray(data) || !data.every(i => i.id && i.category && i.name)) throw 0;
+    if (confirm(`Replace your current ${items.length} items with ${data.length} imported items?`)) {
+      items = data.map(i => ({ ...i, zone: i.zone || ZONE_OF(i.category), status: i.status || "available" }));
+      selected = null; save(); renderAll();
+    }
+  } catch { alert("That file isn't a Digital Closet inventory export."); }
+  e.target.value = "";
+};
+
+renderAll();
+</script>
+</body>
+</html>

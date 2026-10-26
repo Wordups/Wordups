@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Wordups/Wordups/digital-closet/schema/garment.schema.json",
+  "title": "Digital Closet Inventory Item",
+  "description": "One record per physical item. Outfits reference items by id and never copy their fields (Blueprint §14, inventory-first architecture). Every descriptive attribute carries its own confidence level so visual recognition is never mistaken for verified identification (Blueprint §5).",
+  "type": "object",
+  "required": ["id", "owner", "zone", "category", "name", "status"],
+  "additionalProperties": false,
+  "$defs": {
+    "confidence": {
+      "description": "observed = visible in the photo; estimated = AI or owner guess that needs checking; verified = confirmed by label, receipt, or reliable product documentation. Owner confirmation alone is not independent authentication.",
+      "enum": ["observed", "estimated", "verified", "unknown"]
+    },
+    "attribute": {
+      "type": "object",
+      "required": ["value", "confidence"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": ["string", "null"] },
+        "confidence": { "$ref": "#/$defs/confidence" },
+        "evidence": {
+          "description": "What supports the value, e.g. 'care label photo', 'receipt 2025-12-24', 'owner statement'.",
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "money": {
+      "description": "A single amount in USD. Null means not assessed.",
+      "type": "object",
+      "required": ["amount", "confidence"],
+      "additionalProperties": false,
+      "properties": {
+        "amount": { "type": ["number", "null"], "minimum": 0 },
+        "confidence": { "$ref": "#/$defs/confidence" },
+        "source": { "type": ["string", "null"] }
+      }
+    },
+    "range": {
+      "type": "object",
+      "required": ["low", "high"],
+      "additionalProperties": false,
+      "properties": {
+        "low": { "type": "number", "minimum": 0 },
+        "high": { "type": "number", "minimum": 0 },
+        "note": { "type": ["string", "null"] }
+      }
+    }
+  },
+  "properties": {
+    "id": {
+      "description": "Stable prefix-number id, e.g. OUT-001 (outerwear), TOP-004, BOT-002, SHO-010, ACC-003, FRG-001.",
+      "type": "string",
+      "pattern": "^[A-Z]{3}-[0-9]{3,}$"
+    },
+    "owner": { "description": "Household member profile id. Wave 1 uses a single profile.", "type": "string" },
+    "zone": {
+      "description": "Where the item lives on the Digital Rack (Blueprint §4).",
+      "enum": ["rail", "drawer", "accessory", "footwear", "fragrance"]
+    },
+    "category": {
+      "enum": [
+        "outerwear", "jacket", "shirt", "sweater", "suit",
+        "tshirt", "pants", "denim", "underwear", "socks", "knitwear",
+        "watch", "bracelet", "jewelry", "sunglasses", "belt", "accessory",
+        "sneakers", "boots", "loafers", "dress_shoes", "athletic_shoes",
+        "fragrance"
+      ]
+    },
+    "name": { "description": "Plain description, e.g. 'Gray Textured Overcoat'.", "type": "string" },
+    "brand": { "$ref": "#/$defs/attribute" },
+    "model": { "$ref": "#/$defs/attribute" },
+    "color": { "$ref": "#/$defs/attribute" },
+    "pattern": { "$ref": "#/$defs/attribute" },
+    "material": { "$ref": "#/$defs/attribute" },
+    "size": { "$ref": "#/$defs/attribute" },
+    "acquisition": { "description": "How the item was acquired, e.g. 'Gift from wife'.", "type": ["string", "null"] },
+    "valuation": {
+      "description": "Kept as separate fields on purpose (Blueprint §9). Resale value is not guaranteed liquidity.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "original_msrp": { "$ref": "#/$defs/money" },
+        "purchase_price": { "$ref": "#/$defs/money" },
+        "replacement_cost": { "$ref": "#/$defs/money" },
+        "resale_value": { "$ref": "#/$defs/money" },
+        "comparable_retail": {
+          "description": "Price range of similar products. Provisional; never display it as this item's original price.",
+          "$ref": "#/$defs/range"
+        }
+      }
+    },
+    "status": {
+      "description": "Availability (Blueprint §10). The styling engine prefers 'available'.",
+      "enum": ["available", "laundry", "needs_cleaning", "storage", "needs_repair", "unavailable"]
+    },
+    "formality": { "description": "1 = athletic, 3 = smart casual, 5 = black tie.", "type": "integer", "minimum": 1, "maximum": 5 },
+    "seasons": { "type": "array", "items": { "enum": ["spring", "summer", "fall", "winter"] }, "uniqueItems": true },
+    "wear_count": { "type": "integer", "minimum": 0 },
+    "photos": { "type": "array", "items": { "type": "string" } },
+    "notes": { "type": ["string", "null"] },
+    "fragrance": {
+      "description": "Only for zone = fragrance (Blueprint §7).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "concentration": { "type": ["string", "null"] },
+        "bottle_ml": { "type": ["number", "null"] },
+        "family": { "type": ["string", "null"] },
+        "notes": { "type": "array", "items": { "type": "string" } },
+        "remaining_pct": { "type": ["number", "null"], "minimum": 0, "maximum": 100 }
+      }
+    }
+  }
+}
