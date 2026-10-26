@@ -21,21 +21,21 @@
     return root.supabase;
   }
   class ClosetCloud {
-    constructor(client, user, onError) {
-      this.client=client; this.user=user; this.onError=onError;
+    constructor(client, user, onError, ownerId = user.id) {
+      this.client=client; this.user=user; this.onError=onError; this.ownerId=ownerId; this.role=ownerId === user.id ? "master" : "sub";
       this.photos=new Map(); this.subscriptions=new Set(); this.closed=false;
       this.bucket=client.storage.from('closet-photos');
       this.assets={upload:blob=>this.upload(blob),delete:id=>this.removePhoto(id),download:id=>this.download(id)};
     }
     path(id) {
-      if (!id.startsWith('cloud:'+this.user.id+'/')) throw new Error('This photo belongs to a different closet. Import a portable backup with embedded photos.');
+      if (!id.startsWith('cloud:'+this.ownerId+'/')) throw new Error('This photo belongs to a different closet. Import a portable backup with embedded photos.');
       return id.slice(6);
     }
     async download(id) {
       const {data,error}=await this.bucket.download(this.path(id)); if(error)throw error; return data;
     }
     async upload(blob) {
-      const path=this.user.id+'/'+crypto.randomUUID();
+      const path=this.ownerId+'/'+crypto.randomUUID();
       const {error}=await this.bucket.upload(path,blob,{contentType:blob.type,upsert:false}); if(error)throw error;
       const id='cloud:'+path; this.photos.set(id,URL.createObjectURL(blob)); return {id};
     }
@@ -60,7 +60,7 @@
           const result=[];
           // Supabase commonly caps responses at 1,000 rows: page explicitly.
           for(let offset=0;;offset+=500) {
-            const {data,error}=await self.client.from(table).select('record').eq('user_id',self.user.id).order('id').range(offset,offset+499);
+            const {data,error}=await self.client.from(table).select('record').eq('user_id',self.ownerId).order('id').range(offset,offset+499);
             if(error)throw error;result.push(...data.map(row=>row.record));if(data.length<500)break;
           }
           await self.hydrate(result);return result;
@@ -78,10 +78,10 @@
         },
         doc(id) { return {
           async set(record) {
-            const {error}=await self.client.from(table).upsert({user_id:self.user.id,id,record},{onConflict:'user_id,id'});if(error)throw error;
+            const {error}=await self.client.from(table).upsert({user_id:self.ownerId,id,record},{onConflict:'user_id,id'});if(error)throw error;
           },
           async delete() {
-            const {error}=await self.client.from(table).delete().eq('user_id',self.user.id).eq('id',id);if(error)throw error;
+            const {error}=await self.client.from(table).delete().eq('user_id',self.ownerId).eq('id',id);if(error)throw error;
           }
         }; }
       };

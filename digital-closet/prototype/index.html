@@ -869,7 +869,10 @@ async function connectCloud(config, credentials, register = false) {
       const {data,error}=await client.auth.getUser();if(error)throw error;user=data.user;
     }
     if(!user)throw new Error("Sign in to open your private cloud closet.");
-    const adapter=new ClosetCloud.Adapter(client,user,e=>toast(e.message));
+    const {data:linkages,error:linkageError}=await client.from("dc_subaccounts").select("master_user_id").eq("user_id",user.id).range(0,0);
+    if(linkageError)throw linkageError;
+    const ownerId=linkages[0]?.master_user_id || user.id;
+    const adapter=new ClosetCloud.Adapter(client,user,e=>toast(e.message),ownerId);
     // Verify both tables before changing the active storage location.
     let initialItems,initialOutfits;
     try { [initialItems,initialOutfits]=await Promise.all([adapter.collection("items").read(),adapter.collection("outfits").read()]); }
@@ -880,8 +883,8 @@ async function connectCloud(config, credentials, register = false) {
     draftKey="draft.cloud."+user.id;draft=local.get(draftKey,{});selected=null;
     items=initialItems;outfits=initialOutfits;loaded=true;renderAll();
     const generation=storageGeneration;
-    const status=()=>{ $("#sync").textContent="Private cloud closet · checks for changes every 30 seconds. Internet required. Export for a separate backup."; };
-    status();cloudMessage("Signed in as "+user.email);
+    const status=()=>{ $("#sync").textContent=(adapter.role === "sub" ? "Shared closet · Sub-account · checks for changes every 30 seconds." : "Private cloud closet · Master account · checks for changes every 30 seconds.")+" Internet required. Export for a separate backup."; };
+    status();cloudMessage((adapter.role === "sub" ? "Sub-account · " : "Master account · ")+"Signed in as "+user.email);
     adapter.collection("items").onSnapshot(snap=>{if(generation!==storageGeneration)return;items=snap.docs.map(d=>d.data());renderAll();status();},()=>{$("#sync").textContent="Cloud could not refresh. Your displayed records may be out of date; retry when connected.";});
     adapter.collection("outfits").onSnapshot(snap=>{if(generation!==storageGeneration)return;outfits=snap.docs.map(d=>d.data());renderOutfits();},()=>{});
     const subscription=client.auth.onAuthStateChange((event,session)=>{

@@ -8,7 +8,7 @@ const {validateConfig}=require('../prototype/cloud-storage.js');
 (async()=>{
   assert.throws(()=>validateConfig({url:'https://evil.example',key:'sb_publishable_test'}));
   assert.throws(()=>validateConfig({url:'https://test.supabase.co',key:'sb_secret_wrong'}));
-  const records={dc_items:[],dc_outfits:[]}, photos=new Map();let fail=false;
+  const records={dc_items:[],dc_outfits:[],dc_subaccounts:[{user_id:'sub-user',master_user_id:'owner'}]}, photos=new Map();let fail=false;
   require('node:child_process').execFileSync(process.execPath,[path.join(__dirname,'../tools/build-standalone.cjs'),'--cloud']);
   const server=http.createServer((req,res)=>{
     const name=req.url.split('?')[0];
@@ -23,8 +23,8 @@ const {validateConfig}=require('../prototype/cloud-storage.js');
     const context=await browser.newContext({viewport:{width:390,height:844}});const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
     await page.exposeFunction('mockBackend',({op,table,uid,id,record,data})=>{
       if(fail && op==='write')return {error:{message:'Connection lost'}};
-      if(op==='read')return {data:records[table].filter(r=>r.user_id===uid).map(r=>({record:r.record})),error:null};
-      if(op==='write'){records[table]=[...records[table].filter(r=>r.user_id!==uid||r.id!==record.id),record];return {error:null};}
+      if(op==='read')return {data:records[table].filter(r=>r.user_id===uid).map(r=>table==='dc_subaccounts'?r:({record:r.record})),error:null};
+      if(op==='write'){records[table]=[...records[table].filter(r=>r.user_id!==record.user_id||r.id!==record.id),record];return {error:null};}
       if(op==='delete'){records[table]=records[table].filter(r=>r.user_id!==uid||r.id!==id);return {error:null};}
       if(op==='upload'){photos.set(id,data);return {error:null};}
       if(op==='photo'){return {data:photos.get(id),error:null};}
@@ -36,7 +36,7 @@ const {validateConfig}=require('../prototype/cloud-storage.js');
         function user(){return recoveryUser || JSON.parse(localStorage.getItem(storageKey)||'null')}
         return {
           auth:{
-            signInWithPassword:async({email})=>{if(email==='missing@example.invalid')return {data:{},error:{code:'invalid_credentials',message:'Invalid login credentials'}};const u={id:email==='other@example.invalid'?'other':'owner',email};localStorage.setItem(storageKey,JSON.stringify(u));return {data:{user:u},error:null}},
+            signInWithPassword:async({email})=>{if(email==='missing@example.invalid')return {data:{},error:{code:'invalid_credentials',message:'Invalid login credentials'}};const u={id:email==='other@example.invalid'?'other':email==='sub@example.invalid'?'sub-user':'owner',email};localStorage.setItem(storageKey,JSON.stringify(u));return {data:{user:u},error:null}},
             signUp:async({email})=>{const u={id:'new-user',email};localStorage.setItem(storageKey,JSON.stringify(u));return {data:{user:u,session:{user:u}},error:null}},
             resetPasswordForEmail:async email=>{window.mockResetEmail=email;return {error:null}},
             verifyOtp:async({token_hash,type})=>{if(token_hash!=='test-recovery-hash'||type!=='recovery')return {data:{},error:new Error('Expired link')};recoveryUser={id:'owner',email:'owner@example.invalid'};window.mockVerified=true;return {data:{user:recoveryUser,session:{user:recoveryUser}},error:null}},
@@ -69,6 +69,8 @@ const {validateConfig}=require('../prototype/cloud-storage.js');
   assert.match(records.dc_items[0].record.photos[0],/^cloud:owner\//);assert.equal(await first.evaluate(()=>local.get('items',null)),null);
   const second=await device();await connect(second);assert.equal(await second.evaluate(()=>items[0].name),'Cloud shirt');assert.match(await second.evaluate(()=>photoSrc(items[0].photos[0])),/^blob:/);
   const other=await device();await connect(other,'other@example.invalid');assert.equal(await other.evaluate(()=>items.length),0);
+  const sub=await device();await connect(sub,'sub@example.invalid');assert.equal(await sub.evaluate(()=>cloud.role),'sub');assert.equal(await sub.evaluate(()=>items[0].name),'Cloud shirt');assert.equal(await sub.evaluate(()=>cloud.ownerId),'owner');
+  await sub.evaluate(async()=>{await putItem({...items[0],status:'laundry'})});assert.equal(records.dc_items[0].user_id,'owner');await first.evaluate(()=>cloud.refresh());await first.waitForFunction(()=>items[0].status==='laundry');assert(await sub.evaluate(()=>{try{cloud.path('cloud:other/secret');return false}catch{return true}}));
   // A failed backend write must keep the previous record on screen.
   fail=true;const rejected=await first.evaluate(async()=>{try{await putItem({...items[0],name:'Unsaved change'});return false}catch{return true}});assert(rejected);assert.equal(await first.evaluate(()=>items[0].name),'Cloud shirt');fail=false;
   const downloadEvent=second.waitForEvent('download');await second.click('#export');const download=await downloadEvent;const backup=JSON.parse(fs.readFileSync(await download.path(),'utf8'));assert.match(backup[0].photos[0],/^data:image\/jpeg/);

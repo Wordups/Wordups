@@ -87,3 +87,13 @@ Recovery is available inside **Storage & sync → Forgot password?**:
 This copy-link recovery deliberately leaves Midnight's existing project-wide email redirect settings unchanged. The form only accepts a recovery verification link from the configured Supabase project and checks that the returned email matches the requested account. It uses a separate in-memory recovery session, clears the link/password fields, and signs that recovery session out afterward. The shared Midnight app account's password is updated only when its owner submits the new password. Other apps using that same account will use the new password too.
 
 Recovery delivery and password changes require user action. Tests use simulated reset emails/tokens; no live reset email was sent and no real account password was changed during development. If a project's custom email template wraps or replaces the original Supabase verification link, use its own recovery flow or configure a direct closet callback deliberately rather than loosening link validation.
+
+## Master and linked sub-accounts
+
+A dedicated master account and linked sub-account are provisioned for the owner. Their credentials are delivered privately in chat, not committed to either repository. Existing Midnight sign-ins and any personal closets remain unchanged.
+
+The master owns the shared inventory, outfits, and photo folder. The linked sub-account can view, add, edit, and delete records and photos in that shared closet. These are closet accounts, not Supabase dashboard administrators. Linkage is stored in the server-managed `dc_subaccounts` table; browser clients have read-only access to their own relationship and cannot create or change one. Additional unrelated users retain their own isolated closets.
+
+The browser resolves its signed-in user's master relationship before opening records or photos. It shows **Master account** or **Sub-account** in storage status. The `user_id` on shared rows and photo-folder prefix remains the master's ID. RLS checks membership on every request; this permission is not taken from user-editable profile metadata. Outfit drafts are still local to each signed-in account; saved outfits are shared.
+
+`storage/subaccounts.sql` records the additive schema migration already applied to Midnight. Relationship rows are provisioned separately using the auth users' actual generated IDs; the migration does not embed account IDs or passwords. Live API tests verified both generated passwords, master/sub access to the same item and photo, sub editing, and denial of client-side relationship changes. Temporary test records/photos were removed afterward. Sign-in sessions used for API testing were signed out.
