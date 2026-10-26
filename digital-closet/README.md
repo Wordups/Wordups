@@ -85,3 +85,7 @@ The scripts use installed Google Chrome on macOS by default; set `CHROME_PATH` f
 ## Hosted closet
 
 Open **[Digital Closet](https://wordups.github.io/WordUp/closet/)** on your phone or computer. This cloud-first copy is hosted in a new folder on the existing WordUp Pages site, preserving its original page. Sign in to the same app account on both devices. Use **Forgot password?** if your existing account rejects its password; [the storage guide](storage/README.md#rejected-login--password-recovery) explains recovery. The old Claude artifact remains a separate, unchanged copy.
+
+## AI garment photo checks
+
+The published closet now has **Check photos with AI** in the upload flow and **AI photo check** for saved items. Suggestions are reviewed and applied individually; no AI field becomes verified automatically. The authenticated Supabase endpoint requires an OpenAI API key stored only in its server secrets. See [AI activation and safeguards](functions/README.md). Until the key is configured and live-tested, photo checks report their actual connection error and manual entry remains available.

@@ -228,7 +228,13 @@
     <p class="sync">Review and save each item separately. The queue is temporary and is lost when you close this page.</p>
     </section>
     <section data-step="1" hidden>
-    <p class="note">AI identification is not connected. Classify the item yourself. Leave brand and model blank unless you know them; a photo alone does not verify a brand.</p>
+    <div class="card">
+      <h4>Check your garment photos</h4>
+      <p class="sync">OpenAI can suggest details from the front and label photos. Only these photos are sent when you choose Check. AI suggestions need your review and cannot authenticate a brand.</p>
+      <button class="btn" type="button" id="ai-analyze">Check photos with AI</button>
+      <button class="btn" type="button" id="ai-cancel" hidden>Cancel check</button>
+      <p id="ai-status" role="status"></p><div id="ai-suggestions"></div>
+    </div>
     <div class="row2">
       <div><label>Name</label><input name="name" required placeholder="Gray Textured Overcoat"></div>
       <div><label>Category</label><select name="category" required></select></div>
@@ -344,7 +350,7 @@ const SLOTS = [
   ["acc", "Accessory", ZONES.accessory.cats],
   ["scent", "Fragrance", ["fragrance"]]
 ];
-const ATTRS = ["brand", "model", "color", "material", "size"];
+const ATTRS = ["brand", "model", "color", "material", "size", "pattern"];
 const STATUS_LABEL = { available: "Available", laundry: "In laundry", needs_cleaning: "Needs cleaning", storage: "In storage", needs_repair: "Needs repair", unavailable: "Temporarily unavailable" };
 
 // Standalone fallback only; mirrors schema/inventory.seed.json. The published
@@ -529,7 +535,7 @@ function renderDetail() {
     <div class="sub">${esc(i.id)} · ${CAT_LABEL(i.category)} · ${ZONES[i.zone].label}</div>
     <dl>
       ${ATTRS.map(a => attrRow(CAT_LABEL(a), i[a])).join("")}
-      ${attrRow("Pattern", i.pattern)}
+
       <dt>Condition</dt><dd>${esc(i.condition || "Not recorded")}</dd>
       <dt>Acquisition</dt><dd>${esc(i.acquisition || "—")}</dd>
       <dt>Status</dt><dd><select id="status-sel" style="padding:3px 6px">${Object.entries(STATUS_LABEL).map(([k, l]) => `<option value="${k}" ${k === i.status ? "selected" : ""}>${l}</option>`).join("")}</select></dd>
@@ -546,12 +552,14 @@ function renderDetail() {
       <button class="btn small solid" id="to-outfit">Add to outfit</button>
       <button class="btn small" id="wore">Wore it today</button>
       <button class="btn small" id="edit">Edit</button>
+      <button class="btn small" id="ai-existing">AI photo check</button>
       <button class="btn small" id="del">Remove</button>
     </div>`;
   $("#status-sel").onchange = e => putItem({ ...i, status: e.target.value }).catch(failed);
   $("#wore").onclick = () => putItem({ ...i, wear_count: (i.wear_count || 0) + 1 }).then(() => toast(`Logged a wear for ${i.name}.`), failed);
   $("#to-outfit").onclick = () => addToOutfit(i);
   $("#edit").onclick = () => openForm(i);
+  $("#ai-existing").onclick = () => {openForm(i);showUploadStep(1);};
   $("#del").onclick = async () => {
     if (!await ask(`Remove ${i.name} (${i.id}) from your inventory?`, "Remove")) return;
     try {
@@ -630,6 +638,7 @@ function nextId(cat) {
 
 const CONF_OPTS = ["observed", "estimated", "verified", "unknown"];
 function openForm(item) {
+  invalidateAnalysis();
   editing = item || null;uploadNewId=null;
   const f = $("#form");
   f.reset();
@@ -673,6 +682,7 @@ async function saveWithPhotos(rec) {
     await putItem(rec);
   } catch(e) { if(assets) for(const id of uploaded) await assets.delete(id).catch(()=>{}); throw e; }
 }
+let aiSuggestions=null, aiAccepted={}, aiController=null;
 let uploadNewId = null;
 let uploadStep = 0, uploadPhotos = [], uploadRoles = [], uploadQueue = [], uploadBusy = false;
 const field = n => $("#form").elements.namedItem(n);
@@ -686,6 +696,7 @@ function showUploadStep(n) {
   $("#dlg").scrollTop = 0;
 }
 function renderUploadPhotos() {
+  invalidateAnalysis();
   $("#photo-preview").innerHTML = uploadPhotos.map((p,n) => `<div><img src="${esc(photoSrc(p))}" alt="${esc(uploadRoles[n] || "Existing")} photo"><button type="button" class="btn small" data-remove-photo="${n}">Remove ${esc(uploadRoles[n] || "photo")}</button></div>`).join("");
 }
 $("#photo-preview").onclick = e => { if (uploadBusy) return; const n = e.target.dataset.removePhoto; if (n != null) { uploadPhotos.splice(+n,1); uploadRoles.splice(+n,1); renderUploadPhotos(); } };
@@ -724,6 +735,54 @@ async function nextQueued() {
   else { uploadQueue = []; }
   showUploadStep(0);
 }
+function invalidateAnalysis(){
+  aiController?.abort();
+  for(const [a,accepted] of Object.entries(aiAccepted))if(field(a)?.value===accepted.value){if(accepted.simple)field(a).value=accepted.previousValue;else if(field(a+"_c")?.value===accepted.confidence){field(a).value=accepted.previousValue;field(a+"_c").value=accepted.previousConfidence;}}
+  aiSuggestions=null;aiAccepted={};
+  $("#ai-suggestions").innerHTML="";$("#ai-status").textContent="";
+}
+const blobData = blob=>new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error("Photo could not be read."));reader.readAsDataURL(blob);});
+$("#ai-cancel").onclick=()=>aiController?.abort();
+$("#ai-analyze").onclick=async()=>{
+  if(uploadBusy)return;
+  if(!cloud || !cloudClient)return uploadError(new Error("Sign in to your cloud closet before checking photos with AI."));
+  if(!uploadPhotos.length)return uploadError(new Error("Add a front or label photo first."));
+  uploadBusy=true;$("#ai-analyze").disabled=true;$("#ai-cancel").hidden=false;$("#upload-error").hidden=true;
+  $("#ai-status").textContent="Reading your garment photos…";$("#ai-suggestions").innerHTML="";aiSuggestions=null;
+  aiController=new AbortController();const timeout=setTimeout(()=>aiController?.abort(),55000);
+  try{
+    const chosen=[];for(const role of ["front","label"]){const n=uploadRoles.indexOf(role);if(n>=0)chosen.push({role,photo:uploadPhotos[n]});}
+    if(!chosen.length)chosen.push({role:"front",photo:uploadPhotos[0]});
+    const images=[];
+    for(const p of chosen){
+      let data=p.photo;
+      if(!data.startsWith("data:")){const blob=data.startsWith("cloud:")?await cloud.assets.download(data):await (await fetch(photoSrc(data))).blob();data=await blobData(blob);}
+      images.push({role:p.role,data});
+    }
+    const {data,error}=await cloudClient.auth.getSession();if(error || !data.session)throw new Error("Sign in again before using AI.");
+    const config=ClosetCloud.validateConfig(local.get("cloud",DEFAULT_CLOUD));
+    const response=await fetch(config.url+"/functions/v1/closet-analyze",{method:"POST",headers:{Authorization:"Bearer "+data.session.access_token,apikey:config.key,"Content-Type":"application/json"},body:JSON.stringify({images}),signal:aiController.signal});
+    const result=await response.json();
+    if(!response.ok)throw new Error(result.message || (result.error==="ai_not_configured"?"AI needs its server API key before photo checking can start.":result.error==="ai_access_not_enabled"?"AI access is not enabled for this closet account.":"The AI photo check could not finish. Try again later."));
+    if(!result.attributes || !Array.isArray(result.warnings))throw new Error("AI returned an incomplete result. Enter details manually or retry.");
+    aiSuggestions=result;
+    const rows=[...(["name","category"].map(a=>({field:a,value:result[a],confidence:"estimated",evidence:"AI visual suggestion; owner reviewed"}))),...ATTRS.map(a=>({field:a,...result.attributes[a]}))].filter(a=>a.value);
+    $("#ai-suggestions").innerHTML=rows.map(a=>`<div class="card"><b>${esc(CAT_LABEL(a.field))}</b>: ${esc(a.value)} ${badge(a.confidence)}<span class="ev">${esc(a.evidence || "Visual suggestion; needs your review")}</span><button type="button" class="btn small" data-ai-field="${esc(a.field)}">Use / replace ${esc(a.field)}</button></div>`).join("")+result.warnings.map(w=>`<p class="note">${esc(w)}</p>`).join("");
+    $("#ai-status").textContent=rows.length?"Choose which suggestions to use. Your existing details stay until you replace them. AI never marks a brand verified.":"No reliable details were read. Try a clearer label photo or enter details manually.";
+  }catch(e){$("#ai-status").textContent=e.name==="AbortError"?"Photo check canceled or timed out. You can retry or enter details manually.":e.message;}
+  finally{clearTimeout(timeout);aiController=null;uploadBusy=false;$("#ai-analyze").disabled=false;$("#ai-cancel").hidden=true;}
+};
+$("#ai-suggestions").onclick=e=>{
+  const a=e.target.dataset.aiField;if(!a || !aiSuggestions)return;
+  if(["name","category"].includes(a)){const previousValue=aiAccepted[a]?.previousValue ?? field(a).value;field(a).value=aiSuggestions[a];aiAccepted[a]={simple:true,value:aiSuggestions[a],previousValue};}
+  else{
+    const suggestion=aiSuggestions.attributes[a];if(!suggestion?.value)return;
+    const previousValue=aiAccepted[a]?.previousValue ?? field(a).value, previousConfidence=aiAccepted[a]?.previousConfidence ?? field(a+"_c").value;
+    field(a).value=suggestion.value;field(a+"_c").value=suggestion.confidence==="observed"?"observed":"estimated";
+    aiAccepted[a]={previousValue,previousConfidence,value:suggestion.value,confidence:field(a+"_c").value,evidence:`AI suggestion from ${suggestion.source} photo: ${suggestion.evidence || "visual estimate"}; owner reviewed (not independent authentication)`};
+  }
+  e.target.textContent="Applied · review before saving";
+};
 function buildRecord() {
   const f = $("#form"), cat = field("category").value;
   const base = editing || {id:uploadNewId || (uploadNewId=nextId(cat)), owner:"founder",wear_count:0,valuation:{}};
@@ -732,6 +791,7 @@ function buildRecord() {
     acquisition:field("acquisition").value.trim() || null,notes:field("notes").value.trim() || null,
     seasons:[...f.querySelectorAll("[name=seasons]:checked")].map(c=>c.value),photos:[...uploadPhotos],photo_roles:[...uploadRoles]};
   ATTRS.forEach(a => { const value = field(a).value.trim() || null, prev = base[a]; rec[a] = {value,confidence:value ? field(a+"_c").value : "unknown",evidence:prev?.value === value && prev?.confidence === field(a+"_c").value ? prev.evidence ?? null : value ? "Owner-entered; reviewed by owner (not independent authentication)" : null}; });
+  for(const a of ATTRS){const accepted=aiAccepted[a];if(accepted && rec[a].value===accepted.value && rec[a].confidence===accepted.confidence)rec[a].evidence=accepted.evidence;}
   const pp = field("purchase_price").value;
   rec.valuation.purchase_price = pp === "" ? {amount:null,confidence:"unknown",source:null} : {amount:+pp,confidence:"verified",source:"Owner-entered"};
   return rec;
@@ -846,6 +906,7 @@ async function loadCloudCode() {
 }
 function cloudMessage(message) { $("#cloud-status").textContent=message; }
 function lockCloud(message) {
+  invalidateAnalysis();
   cloud?.close(); cloud=null;db=null;assets=null;downloads=null;
   loaded=false;items=[];outfits=[];draft={};selected=null;suggestion=null;
   $("#suggest-out").innerHTML="";
