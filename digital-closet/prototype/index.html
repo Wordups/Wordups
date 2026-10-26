@@ -203,6 +203,7 @@
     </div>
     <hr>
     <div class="actions">
+      <button class="btn small" id="storage-settings">Storage &amp; sync</button>
       <button class="btn small" id="export">Export inventory JSON</button>
       <label class="btn small" style="margin:0;color:var(--champagne)">Import<input type="file" id="import" accept="application/json" hidden></label>
     </div>
@@ -268,6 +269,29 @@
   </form>
 </dialog>
 
+<dialog id="cloud-settings" aria-labelledby="cloud-title">
+  <form id="cloud-form">
+    <h2 id="cloud-title">Private cloud storage</h2>
+    <p id="cloud-status" role="status">Sign in to access your closet on your phone and computer.</p>
+    <p class="sync">Connecting opens a separate cloud closet. Your existing browser and Claude inventory stay where they are. Export them first, then import the backup here when ready.</p>
+    <label for="cloud-url">Supabase project URL</label><input id="cloud-url" type="url" required placeholder="https://your-project.supabase.co" autocomplete="off">
+    <label for="cloud-key">Publishable key</label><input id="cloud-key" required placeholder="sb_publishable_…" autocomplete="off" spellcheck="false">
+    <div id="cloud-signin">
+      <label for="cloud-email">Email</label><input id="cloud-email" type="email" autocomplete="username" required>
+      <label for="cloud-password">Password</label><input id="cloud-password" type="password" autocomplete="current-password" required>
+      <p class="sync">Use the account created in your private Supabase project. You can sign in or create an account. Your password is sent to Supabase and is never saved by the closet app.</p>
+    </div>
+    <p id="cloud-error" class="note" role="alert" hidden></p>
+    <div class="actions">
+      <button class="btn solid" type="submit" id="cloud-connect">Sign in &amp; connect</button>
+      <button class="btn" type="submit" id="cloud-register">Create account</button>
+      <button class="btn" type="button" id="cloud-refresh" hidden>Refresh closet</button>
+      <button class="btn" type="button" id="cloud-signout" hidden>Sign out</button>
+      <button class="btn" type="button" id="cloud-local">Use browser storage</button>
+      <button class="btn" type="button" id="cloud-close">Close</button>
+    </div>
+  </form>
+</dialog>
 <dialog id="ask">
   <form method="dialog">
     <p id="ask-msg" style="margin:0 0 16px"></p>
@@ -328,6 +352,8 @@ const local = {
 };
 
 // Storage backend: the artifact database when published, this browser otherwise.
+const DEFAULT_CLOUD = {url:"https://depvhpxqlpcvsuuzkwyo.supabase.co",key:"sb_publishable_NCSk0d4P3K5SxDEKWwWg1Q_8X00rS6E"};
+let cloud = null, cloudClient = null, cloudAuthSubscription = null, storageGeneration = 0, draftKey = "draft";
 let db = null, assets = null, downloads = null, loaded = false;
 let items = [], outfits = [];
 let draft = local.get("draft", {});
@@ -337,7 +363,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const money = n => n == null ? null : "$" + Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
 const byId = id => items.find(i => i.id === id);
-const photoSrc = p => p.startsWith("data:") ? p : "/_blob/" + p;
+const photoSrc = p => p.startsWith("data:") ? p : p.startsWith("cloud:") ? cloud?.photos.get(p) || "" : "/_blob/" + p;
 
 let toastTimer;
 function toast(msg) {
@@ -363,27 +389,42 @@ function persistItems(next) {
   items = next; renderAll();
 }
 async function putItem(rec) {
+  if(!loaded)throw new Error("Open your closet and sign in before making changes.");
   if (!db) { const next = items.some(i => i.id === rec.id) ? items.map(i => i.id === rec.id ? rec : i) : [...items, rec]; persistItems(next); return; }
+  const generation=storageGeneration;
   await db.collection("items").doc(rec.id).set(rec);
+  if(generation!==storageGeneration)return;
   items = items.some(i=>i.id===rec.id) ? items.map(i=>i.id===rec.id ? rec : i) : [...items,rec]; renderAll();
 }
 async function removeItem(id) {
+  if(!loaded)throw new Error("Open your closet and sign in before making changes.");
   if (!db) { persistItems(items.filter(i => i.id !== id)); return; }
+  const generation=storageGeneration;
   await db.collection("items").doc(id).delete();
+  if(generation!==storageGeneration)return;
+  items=items.filter(i=>i.id!==id);renderAll();
 }
 async function putOutfit(o) {
+  if(!loaded)throw new Error("Open your closet and sign in before making changes.");
   if (!db) { outfits = [o, ...outfits.filter(x => x.id !== o.id)]; saveLocal(); return; }
+  const generation=storageGeneration;
   await db.collection("outfits").doc(o.id).set(o);
+  if(generation!==storageGeneration)return;
+  outfits=[o,...outfits.filter(x=>x.id!==o.id)];renderOutfits();
 }
 async function removeOutfit(id) {
+  if(!loaded)throw new Error("Open your closet and sign in before making changes.");
   if (!db) { outfits = outfits.filter(o => o.id !== id); saveLocal(); return; }
+  const generation=storageGeneration;
   await db.collection("outfits").doc(id).delete();
+  if(generation!==storageGeneration)return;
+  outfits=outfits.filter(o=>o.id!==id);renderOutfits();
 }
 function saveLocal() {
   if (!local.set("items", items) || !local.set("outfits", outfits)) toast("This browser couldn't save. Export your inventory to keep it.");
   renderAll();
 }
-const saveDraft = () => local.set("draft", draft);
+const saveDraft = () => local.set(draftKey, draft);
 
 const NAMED = { black: "#1a1a1a", white: "#eeeae2", cream: "#e9dfc8", ivory: "#efe7d2", gray: "#7d7f82", grey: "#7d7f82", charcoal: "#3a3b3d", navy: "#1f2a44", blue: "#3b5c8c", denim: "#3f5878", brown: "#6b4630", tan: "#b08a5f", camel: "#b48a56", khaki: "#b5a57a", olive: "#5d6239", green: "#3e6146", burgundy: "#6b1f2c", red: "#9c2b2b", pink: "#d49aa5", purple: "#5b3d6b", yellow: "#d9b440", orange: "#c46a2c", silver: "#c0c3c6", gold: "#c9a24f", beige: "#d6c6a5" };
 function fabric(item) {
@@ -559,13 +600,14 @@ function renderInsights() {
 
 function nextId(cat) {
   const p = PREFIX[cat] || PREFIX[ZONE_OF(cat)];
+  if(cloud) return `${p}-${Date.now()}${String(crypto.getRandomValues(new Uint32Array(1))[0]).padStart(10,"0")}`;
   const n = Math.max(0, ...items.filter(i => i.id.startsWith(p + "-")).map(i => +i.id.split("-")[1] || 0));
   return `${p}-${String(n + 1).padStart(3, "0")}`;
 }
 
 const CONF_OPTS = ["observed", "estimated", "verified", "unknown"];
 function openForm(item) {
-  editing = item || null;
+  editing = item || null;uploadNewId=null;
   const f = $("#form");
   f.reset();
   // Associate legacy labels with their controls for screen readers and tap targets.
@@ -596,6 +638,8 @@ function openForm(item) {
 
 // Reuse the same write path for guided uploads and restored portable backups.
 async function saveWithPhotos(rec) {
+  if(cloud && (rec.photos || []).some(p=>!p.startsWith("data:") && !p.startsWith("cloud:"))) throw new Error("This backup contains Claude photo references. Export a portable backup with embedded photos from the original closet first.");
+  if(cloud)for(const p of rec.photos || [])if(p.startsWith("cloud:"))cloud.path(p);
   const uploaded = [];
   try {
     if(db && rec.photos?.some(p=>p.startsWith("data:")) && !assets) throw new Error("Photo storage is unavailable. Retry later or remove the new photos to save details only.");
@@ -606,6 +650,7 @@ async function saveWithPhotos(rec) {
     await putItem(rec);
   } catch(e) { if(assets) for(const id of uploaded) await assets.delete(id).catch(()=>{}); throw e; }
 }
+let uploadNewId = null;
 let uploadStep = 0, uploadPhotos = [], uploadRoles = [], uploadQueue = [], uploadBusy = false;
 const field = n => $("#form").elements.namedItem(n);
 function uploadError(e) { $("#upload-error").textContent = e.message || "Could not save. Try again."; $("#upload-error").hidden = false; }
@@ -658,7 +703,7 @@ async function nextQueued() {
 }
 function buildRecord() {
   const f = $("#form"), cat = field("category").value;
-  const base = editing || {id:nextId(cat), owner:"founder",wear_count:0,valuation:{}};
+  const base = editing || {id:uploadNewId || (uploadNewId=nextId(cat)), owner:"founder",wear_count:0,valuation:{}};
   const rec = {...structuredClone(base),name:field("name").value.trim(), category:cat,zone:ZONE_OF(cat),status:field("status").value,
     condition:field("condition").value || null, formality:+field("formality").value || 3,
     acquisition:field("acquisition").value.trim() || null,notes:field("notes").value.trim() || null,
@@ -733,8 +778,9 @@ $("#export").onclick = async () => {
     backup = structuredClone(items);
     for (const i of backup) i.photos = await Promise.all((i.photos || []).map(async p => {
       if (p.startsWith("data:")) return p;
-      const response = await fetch(photoSrc(p)); if(!response.ok) throw new Error("Photo unavailable");
-      const blob = await response.blob();
+      let blob;
+      if(p.startsWith("cloud:")) { if(!cloud) throw new Error("Sign in to the source cloud closet first."); blob = await cloud.assets.download(p); }
+      else { const response = await fetch(photoSrc(p)); if(!response.ok) throw new Error("Photo unavailable"); blob = await response.blob(); }
       return await new Promise((resolve,reject)=>{ const reader=new FileReader(); reader.onload=()=>resolve(reader.result); reader.onerror=reject; reader.readAsDataURL(blob); });
     }));
   } catch { return toast("Backup stopped: a photo could not be read. Retry before relying on a backup."); }
@@ -770,8 +816,101 @@ function startLocal() {
   loaded = true; renderAll();
 }
 
+// Cloud is opt-in: selecting it never migrates or overwrites the previous closet.
+async function loadCloudCode() {
+  if(window.ClosetCloud) return;
+  await new Promise((resolve,reject)=>{ const script=document.createElement("script");script.src="./cloud-storage.js";script.onload=resolve;script.onerror=()=>{script.remove();reject(new Error("Cloud storage files could not load. Serve the whole prototype folder from a stable HTTPS site."));};document.head.append(script); });
+}
+function cloudMessage(message) { $("#cloud-status").textContent=message; }
+function lockCloud(message) {
+  cloud?.close(); cloud=null;db=null;assets=null;downloads=null;
+  loaded=false;items=[];outfits=[];draft={};selected=null;suggestion=null;
+  $("#suggest-out").innerHTML="";
+  if($("#dlg").open)$("#dlg").close();
+  uploadPhotos=[];uploadRoles=[];uploadQueue=[];$("#form").reset();$("#review").innerHTML="";$("#photo-preview").innerHTML="";
+  renderAll();
+  $("#closet").textContent=message;$("#sync").textContent=message;
+}
+async function connectCloud(config, credentials, register = false) {
+  await loadCloudCode();config=ClosetCloud.validateConfig(config);
+  const sdk=await ClosetCloud.loadSDK();
+  const client=sdk.createClient(config.url,config.key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});
+  try {
+    let user;
+    if(credentials) {
+      const {data,error}=register ? await client.auth.signUp(credentials) : await client.auth.signInWithPassword(credentials);
+      if(error)throw error;
+      if(register && !data.session){cloudMessage("Confirm your email, then return here to sign in.");client.auth.stopAutoRefresh();return false;}
+      user=data.user;
+    } else {
+      const {data,error}=await client.auth.getUser();if(error)throw error;user=data.user;
+    }
+    if(!user)throw new Error("Sign in to open your private cloud closet.");
+    const adapter=new ClosetCloud.Adapter(client,user,e=>toast(e.message));
+    // Verify both tables before changing the active storage location.
+    let initialItems,initialOutfits;
+    try { [initialItems,initialOutfits]=await Promise.all([adapter.collection("items").read(),adapter.collection("outfits").read()]); }
+    catch(e){adapter.close();throw e;}
+    if(!local.set("cloud",config)){adapter.close();throw new Error("This browser cannot remember cloud settings. Enable site storage and retry.");}
+    storageGeneration++;cloudAuthSubscription?.unsubscribe();cloud?.close();
+    cloud=adapter;cloudClient=client;db=adapter;assets=adapter.assets;downloads=null;
+    draftKey="draft.cloud."+user.id;draft=local.get(draftKey,{});selected=null;
+    items=initialItems;outfits=initialOutfits;loaded=true;renderAll();
+    const generation=storageGeneration;
+    const status=()=>{ $("#sync").textContent="Private cloud closet · checks for changes every 30 seconds. Internet required. Export for a separate backup."; };
+    status();cloudMessage("Signed in as "+user.email);
+    adapter.collection("items").onSnapshot(snap=>{if(generation!==storageGeneration)return;items=snap.docs.map(d=>d.data());renderAll();status();},()=>{$("#sync").textContent="Cloud could not refresh. Your displayed records may be out of date; retry when connected.";});
+    adapter.collection("outfits").onSnapshot(snap=>{if(generation!==storageGeneration)return;outfits=snap.docs.map(d=>d.data());renderOutfits();},()=>{});
+    const subscription=client.auth.onAuthStateChange((event,session)=>{
+      if(generation!==storageGeneration)return;
+      if(event==="SIGNED_OUT" || (session && session.user.id!==user.id)) { storageGeneration++;lockCloud("Cloud signed out. Open Storage & sync to sign in again.");cloudMessage("Signed out. Your cloud inventory is preserved.");updateCloudControls(); }
+    });
+    cloudAuthSubscription=subscription.data.subscription;
+    updateCloudControls();return true;
+  } catch(e) { client.auth.stopAutoRefresh();throw e; }
+}
+function updateCloudControls() {
+  const connected=!!cloud;
+  $("#cloud-signin").hidden=connected;$("#cloud-connect").hidden=connected;$("#cloud-register").hidden=connected;
+  $("#cloud-email").required=!connected;$("#cloud-password").required=!connected;
+  $("#cloud-refresh").hidden=!connected;$("#cloud-signout").hidden=!connected;
+}
+$("#storage-settings").onclick=()=>{
+  const config=local.get("cloud",DEFAULT_CLOUD);$("#cloud-url").value=config.url || "";$("#cloud-key").value=config.key || "";
+  $("#cloud-error").hidden=true;updateCloudControls();$("#cloud-settings").showModal();
+};
+$("#cloud-close").onclick=()=>$("#cloud-settings").close();
+$("#cloud-form").onsubmit=async e=>{
+  e.preventDefault();$("#cloud-connect").disabled=true;$("#cloud-register").disabled=true;$("#cloud-error").hidden=true;
+  try {
+    if(location.protocol==="file:")throw new Error("Open this closet from a stable HTTPS website before connecting cloud storage (localhost also works for testing).");
+    const register=e.submitter?.id === "cloud-register";
+    if(register && $("#cloud-password").value.length<12)throw new Error("Use at least 12 characters for a new password.");
+    const connected=await connectCloud({url:$("#cloud-url").value.trim(),key:$("#cloud-key").value.trim()},{email:$("#cloud-email").value.trim(),password:$("#cloud-password").value},register);
+    if(!connected)return;
+    $("#cloud-settings").close();toast("Cloud closet connected. Import your exported inventory when ready.");
+  }catch(e){$("#cloud-error").textContent=e.message;$("#cloud-error").hidden=false;}
+  finally{$("#cloud-password").value="";$("#cloud-connect").disabled=false;$("#cloud-register").disabled=false;}
+};
+$("#cloud-refresh").onclick=()=>{cloud?.refresh();toast("Refreshing cloud closet…");};
+window.addEventListener("focus",()=>cloud?.refresh());
+$("#cloud-signout").onclick=async()=>{
+  const {error}=await cloudClient.auth.signOut();if(error)return toast("Could not sign out. Check the connection and retry.");
+  cloudAuthSubscription?.unsubscribe();storageGeneration++;lockCloud("Signed out. Open Storage & sync to sign in.");updateCloudControls();cloudMessage("Signed out. Your cloud inventory is preserved.");
+};
+$("#cloud-local").onclick=async()=>{
+  if(!await ask("Open this browser's separate inventory? Cloud and Claude records will stay in their current storage. Export before moving records.","Use browser storage"))return;
+  if(cloudClient){const {error}=await cloudClient.auth.signOut();if(error)return toast("Could not sign out. Retry before switching storage.");}
+  cloudAuthSubscription?.unsubscribe();storageGeneration++;cloud?.close();cloud=null;cloudClient=null;db=null;assets=null;downloads=null;
+  localStorage.removeItem("dc.cloud");draftKey="draft";draft=local.get("draft",{});selected=null;
+  try{startLocal();$("#sync").textContent="Saved in this browser only. Export regularly; this inventory does not sync.";$("#cloud-settings").close();}
+  catch(e){lockCloud(e.message);}
+};
 async function start() {
   renderAll();
+  const configured = local.get("cloud", null);
+  if(configured) { await connectCloud(configured); return; }
+  const generation = storageGeneration;
   const c = window.claude;
   if (!c?.use) return startLocal();
   db = await c.use("db");
@@ -780,11 +919,16 @@ async function start() {
 
   $("#sync").textContent = "Saved to your private closet. Changes sync across your devices.";
   db.collection("items").onSnapshot(snap => {
+    if(generation !== storageGeneration) return;
     items = snap.docs.map(d => d.data()); loaded = true; renderAll();
   }, () => { $("#sync").textContent = "Lost connection to your closet. Reload to reconnect."; });
-  db.collection("outfits").onSnapshot(snap => { outfits = snap.docs.map(d => d.data()); renderOutfits(); }, () => {});
+  db.collection("outfits").onSnapshot(snap => { if(generation !== storageGeneration) return; outfits = snap.docs.map(d => d.data()); renderOutfits(); }, () => {});
 }
-start().catch(e => { $("#sync").textContent = "Could not open storage. Reload to retry; existing inventory has not been replaced."; failed(e); });
+start().catch(e => {
+  if(local.get("cloud",null)){lockCloud("Cloud is selected. Open Storage & sync to sign in or reconnect. Your other inventory is preserved.");cloudMessage(e.message);}
+  else {$("#sync").textContent="Could not open storage. Reload to retry; existing inventory has not been replaced.";failed(e);}
+});
+if(location.hash === "#storage") $("#storage-settings").click();
 </script>
 </body>
 </html>

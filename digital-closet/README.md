@@ -7,9 +7,15 @@ An AI-assisted personal wardrobe and styling platform focused on getting more fr
 - [`schema/inventory.seed.json`](schema/inventory.seed.json): the first inventory record, OUT-001
 - [`prototype/index.html`](prototype/index.html): a clickable Digital Rack prototype
 
+## Private cloud storage — now available
+
+Your **Midnight** Supabase project now has separate closet tables and a private photo bucket. In the updated app, open **Storage & sync** and sign in or create an app-user account. The project connection settings are prefilled. Inventory and photos remain private to that signed-in account; sign in from the same updated hosted page on each device.
+
+See [`storage/README.md`](storage/README.md) for setup, deployment, migration, verification, and limitations. Existing browser/Claude inventory is not copied automatically, and the live Claude artifact has not been updated.
+
 ## Prototype
 
-Open `prototype/index.html` in a browser. It is a single file with no build step and no server.
+Open `prototype/index.html` in a browser for local-only use. For cloud storage, serve the prototype folder from a stable HTTPS origin (localhost works for testing), or build the single-file distribution described in the storage guide.
 
 - **Standalone:** data stays in that browser's local storage. Use **Export inventory JSON** to keep a copy.
 - **Published as a claude.ai artifact:** the same file saves the inventory and outfits to the artifact's private database, which only the owner and editors can read. It syncs across devices and stores photos as artifact assets.
@@ -26,7 +32,7 @@ What it covers from Wave 1:
 | Basic outfit recommendations | Rule-based and **Closet Only**: it picks from available owned items by formality and season. It is not AI yet. |
 | Wave 2 preview | Laundry and availability status, wear logging, cost per wear, and wardrobe insights |
 
-Not built yet: standalone user accounts, photo-based AI identification, an independent cloud backend, and the Date Night, Events, and Family modes. The stack and AI provider are still open decisions (Blueprint section 18).
+Not built yet: standalone user accounts, photo-based AI identification, automatic scheduled backups, and the Date Night, Events, and Family modes. The stack and AI provider are still open decisions (Blueprint section 18).
 
 ## Data rules carried from the blueprint
 
@@ -51,10 +57,10 @@ For a batch, start an empty new item and choose up to 20 **front photos**, one p
 
 - The existing `dc.items` browser storage key and private `items`/`outfits` collections are retained. The seed is used only when standalone browser inventory has never been saved. Private storage is never seeded or cleared by this flow. No real private inventory is committed to Git.
 - Standalone saves use **localStorage**, scoped to that browser/profile/origin. This has a small, browser-dependent quota; embedded photos consume it quickly. Private browsing, clearing site data, moving the HTML file, or using another device can make the inventory unavailable. Prefer serving the HTML from a stable origin for continued use. Browser storage is not an encrypted account or a scalable photo library. Do not rely on it as your only copy.
-- When the existing Claude `window.claude.use` adapter is available, records use its database and photos use its assets service. This integration is retained, not independently verified against the live private artifact. Actual sync, access rules, capacity, and asset URLs depend on that host. A private storage initialization failure stops loading rather than silently opening a separate local closet. Multi-editor simultaneous creation is not transaction-safe: coordinate upload sessions to avoid sequential ID collisions.
+- When the existing Claude `window.claude.use` adapter is available, records use its database and photos use its assets service. This integration is retained, not independently verified against the live private artifact. Actual sync, access rules, capacity, and asset URLs depend on that host. A private storage initialization failure stops loading rather than silently opening a separate local closet. Claude multi-editor simultaneous creation is not transaction-safe: coordinate upload sessions to avoid sequential ID collisions. The optional Supabase mode uses a separate cloud adapter and different ID generation.
 - **Export inventory JSON** creates a portable array of item records and embeds photo data, including fetching private asset photos. If a photo cannot be read, export stops with an error rather than silently producing an incomplete photo backup. Keep downloaded JSON private; it contains wardrobe details and photographs. Export after each upload session and before changing the live page. Exports cover inventory, not saved outfits or the outfit in progress.
 - **Import** merges a JSON inventory by ID after confirmation. Same-ID records are replaced; other records stay. Test restoration in a separate browser profile first. On the private backend embedded photos are uploaded as assets. Import is sequential, not an all-or-nothing transaction: if it fails, earlier successful records remain and you can retry. Do not import another person's closet without checking IDs. Old exports with asset IDs alone still depend on the original artifact; create a new portable export before moving hosts.
-- Replaced/removed photos during editing are not immediately purged from private assets, avoiding destructive cleanup of potentially shared references. Long-term asset lifecycle management, authentication outside Claude, larger local storage (e.g. IndexedDB), automatic backups, and a production backend remain future work.
+- Replaced/removed photos during editing are not immediately purged from private assets, avoiding destructive cleanup of potentially shared references. Long-term asset lifecycle management, authentication outside Claude, larger local storage (e.g. IndexedDB) and automatic backups remain future work. An optional Supabase backend is now provisioned; see the storage guide.
 
 ### Updating the live Claude page
 
