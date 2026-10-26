@@ -73,6 +73,8 @@
     "pattern": { "$ref": "#/$defs/attribute" },
     "material": { "$ref": "#/$defs/attribute" },
     "size": { "$ref": "#/$defs/attribute" },
+    "condition": { "description": "Owner-assessed condition; null means not recorded.", "enum": [null, "new", "excellent", "good", "fair", "poor"] },
+    "photo_roles": { "description": "Parallel to photos; legacy records may omit roles.", "type": "array", "items": { "enum": ["front", "label"] } },
     "acquisition": { "description": "How the item was acquired, e.g. 'Gift from wife'.", "type": ["string", "null"] },
     "valuation": {
       "description": "Kept as separate fields on purpose (Blueprint §9). Resale value is not guaranteed liquidity.",

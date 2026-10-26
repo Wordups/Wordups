@@ -111,6 +111,10 @@
   th { color: var(--muted); font-weight: 500; }
 
   dialog { background: var(--panel); color: var(--cream); border: 1px solid var(--brass); border-radius: 6px; width: min(560px, calc(100vw - 32px)); padding: 22px; }
+  dialog { max-height: calc(100dvh - 24px); overflow-y: auto; }
+  [hidden] { display: none !important; }
+  #photo-preview img { width:100%; max-height:160px; object-fit:contain; }
+  @media(max-width:600px) { .row,.row2 { grid-template-columns:1fr; } .btn,input,select { min-height:44px; } .stage { padding:12px; } dialog { padding:16px; } }
   dialog::backdrop { background: rgba(0,0,0,0.7); }
   dialog h2 { font-family: var(--serif); font-weight: 500; margin: 0 0 6px; color: var(--champagne); }
   .row { display: grid; grid-template-columns: 1fr 130px; gap: 8px; }
@@ -202,15 +206,28 @@
       <button class="btn small" id="export">Export inventory JSON</button>
       <label class="btn small" style="margin:0;color:var(--champagne)">Import<input type="file" id="import" accept="application/json" hidden></label>
     </div>
-    <div class="sync" id="sync">Saved in this browser only. Export to keep a copy.</div>
+    <div class="sync" id="sync">Saved in this browser only. Photo storage is limited; clearing browser data can erase your closet. Export after each session.</div>
   </aside>
 </main>
 
-<dialog id="dlg">
-  <form id="form" method="dialog">
+<dialog id="dlg" aria-labelledby="dlg-title">
+  <form id="form">
     <h2 id="dlg-title">Add item</h2>
     <div class="sub" style="color:var(--muted);font-size:12px">Mark each detail as observed (visible), estimated (a guess), or verified (label, receipt, documentation, or your confirmation).</div>
-    <label>Photo (optional)</label><input type="file" name="photo" accept="image/*">
+    <p id="step-label" aria-live="polite"></p>
+    <p id="queue-label"></p>
+    <section data-step="0">
+    <p>Photograph one item laid flat in good light. Add a readable brand / care label. Photos are optional; you can add them later.</p>
+    <label for="front">Front photo</label><input id="front" type="file" name="photo" accept="image/*">
+    <label for="front-camera">Take front photo</label><input id="front-camera" type="file" name="front_camera" accept="image/*" capture="environment">
+    <label for="label-photo">Label photo</label><input id="label-photo" type="file" name="label_photo" accept="image/*">
+    <label for="label-camera">Take label photo</label><input id="label-camera" type="file" name="label_camera" accept="image/*" capture="environment">
+    <div id="photo-preview" class="row2"></div>
+    <label for="batch">Queue several items (one front photo per item, up to 20)</label><input id="batch" type="file" accept="image/*" multiple>
+    <p class="sync">Review and save each item separately. The queue is temporary and is lost when you close this page.</p>
+    </section>
+    <section data-step="1" hidden>
+    <p class="note">AI identification is not connected. Classify the item yourself. Leave brand and model blank unless you know them; a photo alone does not verify a brand.</p>
     <div class="row2">
       <div><label>Name</label><input name="name" required placeholder="Gray Textured Overcoat"></div>
       <div><label>Category</label><select name="category" required></select></div>
@@ -224,6 +241,7 @@
       </select></div>
       <div><label>Formality (1 athletic – 5 formal)</label><input name="formality" type="number" min="1" max="5" value="3"></div>
     </div>
+    <label for="condition">Condition</label><select id="condition" name="condition"><option value="">Not recorded</option><option>new</option><option>excellent</option><option>good</option><option>fair</option><option>poor</option></select>
     <label>Seasons</label>
     <div class="seasons">
       <label><input type="checkbox" name="seasons" value="spring">Spring</label>
@@ -236,9 +254,16 @@
       <div><label>Acquisition</label><input name="acquisition" placeholder="Gift, store, outlet…"></div>
     </div>
     <label>Notes</label><textarea name="notes" rows="2"></textarea>
+    </section>
+    <section data-step="2" hidden><h3>Preview your item</h3><div id="review"></div>
+    <label><input name="owner_confirmed" type="checkbox" style="width:auto"> I reviewed these details. My confirmation is not independent brand authentication.</label>
+    </section>
+    <p id="upload-error" role="alert" class="note" hidden></p>
     <div class="actions" style="justify-content:flex-end">
-      <button class="btn" value="cancel" formnovalidate>Cancel</button>
-      <button class="btn solid" value="save">Save</button>
+      <button class="btn" type="button" id="cancel-upload">Cancel</button>
+      <button class="btn" type="button" id="back-upload">Back</button>
+      <button class="btn solid" type="button" id="next-upload">Next</button>
+      <button class="btn solid" type="submit" id="save-upload" hidden>Save item</button>
     </div>
   </form>
 </dialog>
@@ -273,7 +298,7 @@ const SLOTS = [
   ["acc", "Accessory", ZONES.accessory.cats],
   ["scent", "Fragrance", ["fragrance"]]
 ];
-const ATTRS = ["brand", "model", "color", "material"];
+const ATTRS = ["brand", "model", "color", "material", "size"];
 const STATUS_LABEL = { available: "Available", laundry: "In laundry", needs_cleaning: "Needs cleaning", storage: "In storage", needs_repair: "Needs repair", unavailable: "Temporarily unavailable" };
 
 // Standalone fallback only; mirrors schema/inventory.seed.json. The published
@@ -333,12 +358,17 @@ function failed(e) {
     : "That change didn't save. Check your connection and try again.");
 }
 
+function persistItems(next) {
+  if (!local.set("items", next)) throw new Error("Browser storage is full or unavailable. Export a backup; the item has not been saved.");
+  items = next; renderAll();
+}
 async function putItem(rec) {
-  if (!db) { items = items.some(i => i.id === rec.id) ? items.map(i => i.id === rec.id ? rec : i) : [...items, rec]; saveLocal(); return; }
+  if (!db) { const next = items.some(i => i.id === rec.id) ? items.map(i => i.id === rec.id ? rec : i) : [...items, rec]; persistItems(next); return; }
   await db.collection("items").doc(rec.id).set(rec);
+  items = items.some(i=>i.id===rec.id) ? items.map(i=>i.id===rec.id ? rec : i) : [...items,rec]; renderAll();
 }
 async function removeItem(id) {
-  if (!db) { items = items.filter(i => i.id !== id); saveLocal(); return; }
+  if (!db) { persistItems(items.filter(i => i.id !== id)); return; }
   await db.collection("items").doc(id).delete();
 }
 async function putOutfit(o) {
@@ -406,14 +436,14 @@ function renderCloset() {
     const tip = i => esc(`${i.name} · ${STATUS_LABEL[i.status]}`);
     let body;
     if (!zi.length) body = `<div class="empty">Nothing here yet.</div>`;
-    else if (z === "rail") body = `<div class="items">${zi.map(i => `<button class="hanger ${cls(i)}" data-id="${i.id}" title="${tip(i)}">${silhouette(i)}<div class="tag">${esc(i.name)}</div></button>`).join("")}</div>`;
-    else body = zi.map(i => `<button class="slot-item ${cls(i)}" data-id="${i.id}" title="${tip(i)}">${silhouette(i)}<div class="tag">${esc(i.name)}</div></button>`).join("");
+    else if (z === "rail") body = `<div class="items">${zi.map(i => `<button class="hanger ${cls(i)}" data-id="${esc(i.id)}" title="${tip(i)}">${silhouette(i)}<div class="tag">${esc(i.name)}</div></button>`).join("")}</div>`;
+    else body = zi.map(i => `<button class="slot-item ${cls(i)}" data-id="${esc(i.id)}" title="${tip(i)}">${silhouette(i)}<div class="tag">${esc(i.name)}</div></button>`).join("");
     const wrap = z === "rail" ? "rail" : z === "drawer" ? "drawers" : z === "fragrance" ? "shelf lit" : "shelf";
     return `<div class="zone"><h3>${meta.label}</h3><div class="${wrap}">${body}</div></div>`;
   }).join("");
 }
 
-const badge = c => `<span class="badge ${c}">${c === "unknown" ? "unverified" : c}</span>`;
+const badge = c => `<span class="badge ${esc(c)}">${c === "unknown" ? "unverified" : esc(c)}</span>`;
 function attrRow(label, a) {
   if (!a) return "";
   return `<dt>${label}</dt><dd>${a.value ? esc(a.value) : "<span style='color:var(--muted)'>—</span>"}${badge(a.confidence)}${a.evidence ? `<span class="ev">${esc(a.evidence)}</span>` : ""}</dd>`;
@@ -436,7 +466,7 @@ function renderDetail() {
     <dl>
       ${ATTRS.map(a => attrRow(CAT_LABEL(a), i[a])).join("")}
       ${attrRow("Pattern", i.pattern)}
-      ${attrRow("Size", i.size)}
+      <dt>Condition</dt><dd>${esc(i.condition || "Not recorded")}</dd>
       <dt>Acquisition</dt><dd>${esc(i.acquisition || "—")}</dd>
       <dt>Status</dt><dd><select id="status-sel" style="padding:3px 6px">${Object.entries(STATUS_LABEL).map(([k, l]) => `<option value="${k}" ${k === i.status ? "selected" : ""}>${l}</option>`).join("")}</select></dd>
       <dt>Worn</dt><dd>${i.wear_count || 0} time${i.wear_count === 1 ? "" : "s"}${cpw ? ` · ${cpw} per wear` : ""}</dd>
@@ -462,7 +492,7 @@ function renderDetail() {
     if (!await ask(`Remove ${i.name} (${i.id}) from your inventory?`, "Remove")) return;
     try {
       await removeItem(i.id);
-      if (assets) for (const p of i.photos || []) if (!p.startsWith("data:")) assets.delete(p).catch(() => {});
+      if (assets) for (const p of i.photos || []) if (!p.startsWith("data:") && !items.some(other=>other.id!==i.id && other.photos?.includes(p))) assets.delete(p).catch(() => {});
       for (const k in draft) if (draft[k] === i.id) delete draft[k];
       saveDraft(); selected = null; renderAll();
     } catch (e) { failed(e); }
@@ -538,11 +568,16 @@ function openForm(item) {
   editing = item || null;
   const f = $("#form");
   f.reset();
+  // Associate legacy labels with their controls for screen readers and tap targets.
+  f.querySelectorAll("label").forEach((label,n) => {
+    const control = label.nextElementSibling;
+    if (!label.htmlFor && control?.matches("input,select,textarea")) { control.id ||= `upload-field-${n}`; label.htmlFor = control.id; }
+  });
   $("#dlg-title").textContent = item ? `Edit ${item.id}` : "Add item";
   f.category.innerHTML = Object.entries(ZONES).map(([z, m]) => `<optgroup label="${m.label}">${m.cats.map(c => `<option value="${c}">${CAT_LABEL(c)}</option>`).join("")}</optgroup>`).join("");
-  $("#attr-fields").innerHTML = ATTRS.map(a => `<label for="f-${a}">${CAT_LABEL(a)}</label><div class="row"><input id="f-${a}" name="${a}" placeholder="${a === "brand" ? "Only if label or receipt shows it" : ""}"><select id="f-${a}-c" name="${a}_c">${CONF_OPTS.map(c => `<option value="${c}">${c === "unknown" ? "unverified" : c}</option>`).join("")}</select></div>`).join("");
+  $("#attr-fields").innerHTML = ATTRS.map(a => `<label for="f-${a}">${CAT_LABEL(a)}</label><div class="row"><input id="f-${a}" name="${a}" placeholder="${a === "brand" ? "Only if label or receipt shows it" : ""}"><select id="f-${a}-c" aria-label="${CAT_LABEL(a)} confidence" name="${a}_c">${CONF_OPTS.map(c => `<option value="${c}">${c === "unknown" ? "unverified" : c}</option>`).join("")}</select></div>`).join("");
   if (item) {
-    f.name.value = item.name; f.category.value = item.category; f.status.value = item.status;
+    f.elements.namedItem("name").value = item.name; f.category.value = item.category; f.status.value = item.status;
     f.formality.value = item.formality ?? 3; f.acquisition.value = item.acquisition || ""; f.notes.value = item.notes || "";
     f.purchase_price.value = item.valuation?.purchase_price?.amount ?? "";
     ATTRS.forEach(a => { f[a].value = item[a]?.value || ""; f[a + "_c"].value = item[a]?.confidence || "unknown"; });
@@ -550,61 +585,124 @@ function openForm(item) {
   } else {
     ATTRS.forEach(a => f[a + "_c"].value = a === "color" ? "observed" : "estimated");
   }
-  $("#dlg").showModal();
+  f.condition.value = item?.condition || "";
+  uploadPhotos = [...(item?.photos || [])];
+  uploadRoles = [...(item?.photo_roles || uploadPhotos.map((_, n) => n ? "label" : "front"))];
+  f.owner_confirmed.checked = false;
+  $("#upload-error").hidden = true;
+  showUploadStep(0); renderUploadPhotos();
+  if (!$("#dlg").open) $("#dlg").showModal();
 }
 
-function downscale(file, max = 480) {
-  return new Promise(res => {
-    if (!file) return res(null);
-    const img = new Image(), r = new FileReader();
-    r.onload = () => { img.src = r.result; };
-    img.onload = () => {
-      const s = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement("canvas");
-      c.width = img.width * s; c.height = img.height * s;
-      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-      res(c);
-    };
-    img.onerror = () => res(null);
-    r.readAsDataURL(file);
-  });
-}
-async function storePhoto(file) {
-  const canvas = await downscale(file, assets ? 1200 : 480);
-  if (!canvas) return null;
-  if (!assets) return canvas.toDataURL("image/jpeg", 0.8);
-  const blob = await new Promise(r => canvas.toBlob(r, "image/jpeg", 0.85));
-  const up = await assets.upload(blob, { type: "image/jpeg" });
-  return up.id;
-}
-
-$("#dlg").addEventListener("close", async () => {
-  if ($("#dlg").returnValue !== "save") return;
-  const f = $("#form"), cat = f.category.value, zone = ZONE_OF(cat);
-  const base = editing || { id: nextId(cat), owner: "founder", wear_count: 0, photos: [], valuation: {}, pattern: { value: null, confidence: "unknown", evidence: null }, size: { value: null, confidence: "unknown", evidence: null } };
-  const rec = { ...structuredClone(base), name: f.name.value.trim(), category: cat, zone, status: f.status.value,
-    formality: Math.min(5, Math.max(1, +f.formality.value || 3)),
-    seasons: [...f.querySelectorAll("[name=seasons]:checked")].map(cb => cb.value),
-    acquisition: f.acquisition.value.trim() || null, notes: f.notes.value.trim() || null };
-  ATTRS.forEach(a => {
-    const v = f[a].value.trim() || null;
-    const prev = base[a];
-    rec[a] = { value: v, confidence: v ? f[a + "_c"].value : "unknown", evidence: prev && prev.value === v ? prev.evidence ?? null : null };
-  });
-  const pp = f.purchase_price.value;
-  rec.valuation = { ...rec.valuation, purchase_price: pp === "" ? { amount: null, confidence: "unknown", source: null } : { amount: +pp, confidence: "verified", source: "Owner-entered" } };
+// Reuse the same write path for guided uploads and restored portable backups.
+async function saveWithPhotos(rec) {
+  const uploaded = [];
   try {
-    const photo = await storePhoto(f.photo.files[0]);
-    if (photo) rec.photos = [photo, ...(base.photos || [])].slice(0, 3);
-  } catch { toast("The photo didn't upload. The item was saved without it."); }
-  try { await putItem(rec); selected = rec.id; renderAll(); toast(`${editing ? "Updated" : "Added"} ${rec.id}.`); }
-  catch (e) { failed(e); }
-});
+    if(db && rec.photos?.some(p=>p.startsWith("data:")) && !assets) throw new Error("Photo storage is unavailable. Retry later or remove the new photos to save details only.");
+    if(assets) for(let n=0;n<(rec.photos || []).length;n++) if(rec.photos[n].startsWith("data:")) {
+      const blob = await (await fetch(rec.photos[n])).blob();
+      const up = await assets.upload(blob,{type:blob.type}); uploaded.push(up.id); rec.photos[n] = up.id;
+    }
+    await putItem(rec);
+  } catch(e) { if(assets) for(const id of uploaded) await assets.delete(id).catch(()=>{}); throw e; }
+}
+let uploadStep = 0, uploadPhotos = [], uploadRoles = [], uploadQueue = [], uploadBusy = false;
+const field = n => $("#form").elements.namedItem(n);
+function uploadError(e) { $("#upload-error").textContent = e.message || "Could not save. Try again."; $("#upload-error").hidden = false; }
+function showUploadStep(n) {
+  uploadStep = n;
+  document.querySelectorAll("[data-step]").forEach(el => el.hidden = +el.dataset.step !== n);
+  $("#step-label").textContent = `Step ${n+1} of 3 · ${["Photos", "Details", "Review & save"][n]}`;
+  $("#queue-label").textContent = uploadQueue.length ? `${uploadQueue.length} more items queued after this one` : "";
+  $("#back-upload").hidden = n === 0; $("#next-upload").hidden = n === 2; $("#save-upload").hidden = n !== 2;
+  $("#dlg").scrollTop = 0;
+}
+function renderUploadPhotos() {
+  $("#photo-preview").innerHTML = uploadPhotos.map((p,n) => `<div><img src="${esc(photoSrc(p))}" alt="${esc(uploadRoles[n] || "Existing")} photo"><button type="button" class="btn small" data-remove-photo="${n}">Remove ${esc(uploadRoles[n] || "photo")}</button></div>`).join("");
+}
+$("#photo-preview").onclick = e => { if (uploadBusy) return; const n = e.target.dataset.removePhoto; if (n != null) { uploadPhotos.splice(+n,1); uploadRoles.splice(+n,1); renderUploadPhotos(); } };
+async function readPhoto(file) {
+  if (!file || !file.type.startsWith("image/") || file.size > 25 * 1024 * 1024) throw new Error("Choose an image under 25 MB. Convert HEIC to JPEG if your browser cannot open it.");
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image(); img.src = url; await img.decode();
+    const scale = Math.min(1, 1200 / Math.max(img.width,img.height)), canvas = document.createElement("canvas");
+    canvas.width = Math.max(1,Math.round(img.width*scale)); canvas.height = Math.max(1,Math.round(img.height*scale));
+    canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
+    return canvas.toDataURL("image/jpeg",0.82);
+  } catch { throw new Error("This image could not be read. Try a JPEG or PNG. Your item has not been saved."); }
+  finally { URL.revokeObjectURL(url); }
+}
+async function choosePhoto(file,role) {
+  if (uploadBusy) return;
+  uploadBusy = true;
+  try { const p = await readPhoto(file), n = uploadRoles.indexOf(role); if (n < 0) { uploadPhotos.push(p); uploadRoles.push(role); } else uploadPhotos[n] = p; $("#upload-error").hidden=true; renderUploadPhotos(); }
+  catch(e) { uploadError(e); } finally { uploadBusy = false; }
+}
+["photo","front_camera","label_photo","label_camera"].forEach(n => field(n).onchange = e => { if(e.target.files[0]) choosePhoto(e.target.files[0], n.includes("label") ? "label" : "front"); });
+$("#batch").onchange = async e => {
+  if(uploadBusy) return uploadError(new Error("Wait for the current photo to finish."));
+  const files = [...e.target.files]; e.target.value = "";
+  if (editing || uploadPhotos.length || uploadQueue.length) return uploadError(new Error("Start a new empty item to queue front photos."));
+  if (files.length > 20) return uploadError(new Error("Choose up to 20 items at a time."));
+  uploadQueue = files; await nextQueued();
+};
+async function nextQueued() {
+  if (!uploadQueue.length) return;
+  const file = uploadQueue[0];
+  openForm();
+  await choosePhoto(file,"front");
+  if (uploadPhotos.length) uploadQueue.shift();
+  else { uploadQueue = []; }
+  showUploadStep(0);
+}
+function buildRecord() {
+  const f = $("#form"), cat = field("category").value;
+  const base = editing || {id:nextId(cat), owner:"founder",wear_count:0,valuation:{}};
+  const rec = {...structuredClone(base),name:field("name").value.trim(), category:cat,zone:ZONE_OF(cat),status:field("status").value,
+    condition:field("condition").value || null, formality:+field("formality").value || 3,
+    acquisition:field("acquisition").value.trim() || null,notes:field("notes").value.trim() || null,
+    seasons:[...f.querySelectorAll("[name=seasons]:checked")].map(c=>c.value),photos:[...uploadPhotos],photo_roles:[...uploadRoles]};
+  ATTRS.forEach(a => { const value = field(a).value.trim() || null, prev = base[a]; rec[a] = {value,confidence:value ? field(a+"_c").value : "unknown",evidence:prev?.value === value && prev?.confidence === field(a+"_c").value ? prev.evidence ?? null : value ? "Owner-entered; reviewed by owner (not independent authentication)" : null}; });
+  const pp = field("purchase_price").value;
+  rec.valuation.purchase_price = pp === "" ? {amount:null,confidence:"unknown",source:null} : {amount:+pp,confidence:"verified",source:"Owner-entered"};
+  return rec;
+}
+function duplicates(rec) {
+  const norm = s => (s || "").trim().toLowerCase();
+  return items.filter(i=>i.id !== editing?.id && (norm(i.name) === norm(rec.name) || (i.category === rec.category && norm(rec.brand?.value) && norm(i.brand?.value) === norm(rec.brand.value) && norm(rec.color?.value) && norm(i.color?.value) === norm(rec.color.value)) || rec.photos.some(p=>i.photos?.includes(p))));
+}
+$("#next-upload").onclick = () => {
+  if (uploadBusy) return uploadError(new Error("Wait for the photo to finish."));
+  if (uploadStep === 1) {
+    const f = $("#form"); if (!f.reportValidity()) return;
+    if (!field("name").value.trim()) return uploadError(new Error("Enter an item name."));
+    const rec = buildRecord(), dup = duplicates(rec);
+    $("#review").innerHTML = `<h4>${esc(rec.name)}</h4><div class="row2">${rec.photos.map((p,n)=>`<div><img class="photo" src="${esc(photoSrc(p))}" alt="${esc(rec.photo_roles[n] || "Item")} preview"></div>`).join("")}</div><p>${esc(CAT_LABEL(rec.category))} · ${esc(rec.condition || "Condition unknown")} · ${esc(STATUS_LABEL[rec.status])}</p><dl>${ATTRS.map(a=>attrRow(CAT_LABEL(a),rec[a])).join("")}</dl><p>${rec.photos.length} photos · Purchase price: ${esc(money(rec.valuation.purchase_price.amount) || "Not recorded")} · ${esc(rec.acquisition || "Acquisition not recorded")}</p><p>Seasons: ${esc(rec.seasons.join(", ") || "Any")} · Formality: ${rec.formality}</p><p>${esc(rec.notes || "")}</p>${dup.length ? `<p class="note">Possible duplicate: ${dup.map(i=>esc(i.id+" "+i.name)).join(", ")}. Go back to edit, or save as a separate physical item.</p>` : ""}`;
+    field("owner_confirmed").checked = false;
+  }
+  $("#upload-error").hidden=true; showUploadStep(uploadStep+1);
+};
+$("#back-upload").onclick = () => { if(!uploadBusy) showUploadStep(uploadStep-1); };
+$("#cancel-upload").onclick = async () => { if(!uploadBusy && await ask("Discard this unsaved item and remaining queue?", "Discard")) { uploadQueue=[]; $("#dlg").close(); } };
+$("#dlg").addEventListener("cancel",e=> { e.preventDefault(); $("#cancel-upload").click(); });
+$("#form").onsubmit = async e => {
+  e.preventDefault(); if (uploadStep !== 2 || uploadBusy) return;
+  if (!field("owner_confirmed").checked) return uploadError(new Error("Review and confirm the item before saving."));
+  uploadBusy = true; $("#save-upload").disabled = true;
+  try {
+    const rec = buildRecord();
+    await saveWithPhotos(rec); selected=rec.id; renderAll(); $("#dlg").close(); toast(`Saved ${rec.id}. Export a backup after your session.`);
+  } catch(e) { uploadError(e); return; }
+  finally { uploadBusy=false; $("#save-upload").disabled=false; }
+  if(uploadQueue.length) await nextQueued();
+};
 
 function renderAll() { renderCloset(); renderDetail(); renderSlots(); renderOutfits(); renderInsights(); }
 
 $("#closet").addEventListener("click", e => { const b = e.target.closest("[data-id]"); if (b) { selected = b.dataset.id; renderCloset(); renderDetail(); } });
 ["#q", "#f-zone", "#f-status"].forEach(s => $(s).addEventListener("input", renderCloset));
-$("#add-btn").onclick = () => openForm();
+$("#add-btn").onclick = () => { if(!loaded) return; uploadQueue=[]; openForm(); };
 $("#suggest").onclick = suggest;
 $("#suggest-out").addEventListener("click", e => { if (e.target.id === "use-suggest" && suggestion) { draft = { ...suggestion }; saveDraft(); renderSlots(); } });
 $("#slots").addEventListener("click", e => { const k = e.target.dataset.slot; if (k) { delete draft[k]; saveDraft(); renderSlots(); } });
@@ -629,31 +727,45 @@ $("#nav").addEventListener("click", e => {
   ["wardrobe", "outfits", "insights"].forEach(x => $("#view-" + x).classList.toggle("hidden", x !== v));
 });
 $("#export").onclick = async () => {
-  const json = JSON.stringify(items, null, 2), filename = "digital-closet-inventory.json";
+  if(!loaded) return toast("Wait for your closet to load before exporting.");
+  let backup;
+  try {
+    backup = structuredClone(items);
+    for (const i of backup) i.photos = await Promise.all((i.photos || []).map(async p => {
+      if (p.startsWith("data:")) return p;
+      const response = await fetch(photoSrc(p)); if(!response.ok) throw new Error("Photo unavailable");
+      const blob = await response.blob();
+      return await new Promise((resolve,reject)=>{ const reader=new FileReader(); reader.onload=()=>resolve(reader.result); reader.onerror=reject; reader.readAsDataURL(blob); });
+    }));
+  } catch { return toast("Backup stopped: a photo could not be read. Retry before relying on a backup."); }
+  const json = JSON.stringify(backup, null, 2), filename = "digital-closet-inventory.json";
   if (downloads) {
     try { await downloads.save({ filename, data: json }); } catch (e) { if (e?.code !== "declined") toast("Export isn't available here."); }
     return;
   }
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([json], { type: "application/json" }));
-  a.download = filename; a.click();
+  a.download = filename; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 };
 $("#import").onchange = async e => {
+  if(!loaded) { e.target.value=""; return toast("Wait for your closet to load before importing."); }
   const file = e.target.files[0]; e.target.value = "";
   let data;
   try {
     data = JSON.parse(await file.text());
-    if (!Array.isArray(data) || !data.every(i => i && /^[A-Z]{3}-\d{3,}$/.test(i.id) && i.category && i.name)) throw 0;
+    if (!Array.isArray(data) || new Set(data.map(i=>i?.id)).size !== data.length || !data.every(i => i && /^[A-Z]{3}-\d{3,}$/.test(i.id) && ZONE_OF(i.category) && typeof i.name === "string" && i.name.trim() && (!i.zone || i.zone === ZONE_OF(i.category)) && (!i.status || STATUS_LABEL[i.status]) && (!i.photos || (Array.isArray(i.photos) && i.photos.every(p=>typeof p === "string"))) && ATTRS.every(a=>!i[a] || (typeof i[a] === "object" && CONF_OPTS.includes(i[a].confidence) && (i[a].value === null || typeof i[a].value === "string"))))) throw 0;
   } catch { return toast("That file isn't a Digital Closet inventory export."); }
   if (!await ask(`Import ${data.length} items? Items with the same ID are replaced; others are kept.`, "Import")) return;
   try {
-    for (const i of data) await putItem({ ...i, zone: i.zone || ZONE_OF(i.category), status: i.status || "available" });
+    for (const i of data) await saveWithPhotos({ ...i, zone: i.zone || ZONE_OF(i.category), status: i.status || "available" });
     toast(`Imported ${data.length} items.`);
   } catch (err) { failed(err); }
 };
 
 function startLocal() {
-  items = local.get("items", structuredClone(SEED));
+  const stored = localStorage.getItem("dc.items");
+  items = stored === null ? structuredClone(SEED) : JSON.parse(stored);
+  if (!Array.isArray(items)) throw new Error("Stored inventory is unreadable; it has not been overwritten.");
   outfits = local.get("outfits", []);
   loaded = true; renderAll();
 }
@@ -663,16 +775,16 @@ async function start() {
   const c = window.claude;
   if (!c?.use) return startLocal();
   db = await c.use("db");
-  if (!db) return startLocal();
+  if (!db) throw new Error("Private storage unavailable");
   [assets, downloads] = await Promise.all([c.use("assets"), c.use("downloads")]);
-  if (!assets) $("[name=photo]").disabled = true;
+
   $("#sync").textContent = "Saved to your private closet. Changes sync across your devices.";
   db.collection("items").onSnapshot(snap => {
     items = snap.docs.map(d => d.data()); loaded = true; renderAll();
   }, () => { $("#sync").textContent = "Lost connection to your closet. Reload to reconnect."; });
   db.collection("outfits").onSnapshot(snap => { outfits = snap.docs.map(d => d.data()); renderOutfits(); }, () => {});
 }
-start();
+start().catch(e => { $("#sync").textContent = "Could not open storage. Reload to retry; existing inventory has not been replaced."; failed(e); });
 </script>
 </body>
 </html>
