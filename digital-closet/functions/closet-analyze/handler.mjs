@@ -38,7 +38,7 @@ export function createHandler({env,fetcher=fetch,now=Date.now}) {
       if(!access.ok)return reply(503,{error:'ai_access_unavailable'});
       if(!(await access.json()).length)return reply(403,{error:'ai_access_not_enabled'});
       const apiKey=env('GEMINI_API_KEY');
-      const model='gemini-3.1-flash-lite';
+      const model='gemini-3.5-flash-lite';
       if(req.method==='GET')return reply(200,{configured:!!apiKey,provider:'Gemini',model});
       if(!apiKey)return reply(503,{error:'ai_not_configured',message:'Add GEMINI_API_KEY in Supabase secrets to enable photo checks. You can still save items manually.'});
       if(Number(req.headers.get('content-length'))>6_000_000)return reply(413,{error:'photos_too_large'});

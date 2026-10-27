@@ -7,7 +7,7 @@
 In the **Midnight** project, open [Edge Function Secrets](https://supabase.com/dashboard/project/depvhpxqlpcvsuuzkwyo/functions/secrets) and add:
 
 - `GEMINI_API_KEY`: a Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey), entered directly in Supabase, never in the browser code, repository, or chat.
-The model is pinned to `gemini-3.1-flash-lite`. OpenAI secrets are ignored; there is no paid-provider fallback.
+The model is pinned to `gemini-3.5-flash-lite`. OpenAI secrets are ignored; there is no paid-provider fallback.
 
 No provider key is committed here. Use a Google project on the free tier without billing enabled to avoid charges. Free quotas and regional eligibility apply; quota errors stop analysis. The app cannot determine the billing tier from a key. Google may use free-tier submissions to improve its products; see [pricing and data use](https://ai.google.dev/gemini-api/docs/pricing). GET on the authenticated function reports only whether a key exists, not its value. A configured key is not proof of working billing/model access; run a live photo check after setup. The existing Supabase connection is not itself an AI subscription.
 

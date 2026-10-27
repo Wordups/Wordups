@@ -11,7 +11,7 @@ const envs={SUPABASE_URL:'https://test.supabase.co',SUPABASE_ANON_KEY:'public-te
 const fetcher=async(url,options)=>{
  if(url.endsWith('/auth/v1/user'))return Response.json({id:'owner'});
  if(url.includes('/rest/v1/dc_ai_access'))return Response.json([{user_id:'owner'}]);
- modelCalls++;lastRequest=JSON.parse(options.body);return Response.json({candidates:[{finishReason:'STOP',content:{parts:[{text:JSON.stringify(result)}]}}]});
+ assert.equal(url,'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent');assert.equal(options.headers['x-goog-api-key'],'server-test');modelCalls++;lastRequest=JSON.parse(options.body);return Response.json({candidates:[{finishReason:'STOP',content:{parts:[{text:JSON.stringify(result)}]}}]});
 };
 const handler=createHandler({env:k=>envs[k],fetcher});
 const request=(method,body,authorization='Bearer test',origin='https://wordups.github.io')=>new Request('https://test/analysis',{method,headers:{authorization,origin,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
