@@ -53,7 +53,14 @@ export function createHandler({env,fetcher=fetch,now=Date.now}) {
       const content=[{type:'input_text',text:'Analyze these garment photos. Each following image is labeled by its provided role.'}];
       for(const p of images)content.push({type:'input_text',text:'Photo role: '+p.role},{type:'input_image',image_url:p.data,detail:'high'});
       const response=await fetcher('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:'Bearer '+apiKey,'Content-Type':'application/json'},body:JSON.stringify({model:env('CLOSET_AI_MODEL') || 'gpt-4.1-mini',store:false,instructions:instruction,input:[{role:'user',content}],max_output_tokens:2200,text:{format:{type:'json_schema',name:'garment_suggestions',strict:true,schema}}}),signal:AbortSignal.timeout(50000)});
-      if(!response.ok)return reply(response.status===429?429:502,{error:'provider_unavailable',message:'The AI provider could not analyze these photos. Retry later or enter details manually.'});
+      if(!response.ok){
+        let failure;try{failure=await response.json();}catch{failure={};}
+        const code=failure.error?.code || failure.error?.type;
+        if(code==='insufficient_quota' || failure.error?.type==='insufficient_quota')return reply(429,{error:'provider_quota',message:'OpenAI API billing or project quota needs attention. Add API credits or increase the project budget, then retry.'});
+        if(code==='invalid_api_key')return reply(503,{error:'provider_key_invalid',message:'The OpenAI server API key was rejected. Update the key in Supabase secrets.'});
+        if(response.status===429)return reply(429,{error:'provider_rate_limit',message:'OpenAI is rate limiting photo checks. Wait briefly and retry; check the API project limits if this continues.'});
+        return reply(502,{error:'provider_unavailable',message:'The AI provider could not analyze these photos. Retry later or enter details manually.'});
+      }
       const data=await response.json();if(data.status==='incomplete')return reply(502,{error:'incomplete_analysis'});
       const parts=(data.output || []).flatMap(o=>o.content || []);
       if(parts.some(p=>p.type==='refusal'))return reply(422,{error:'analysis_declined',message:'These photos could not be analyzed. Enter details manually.'});
