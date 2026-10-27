@@ -38,7 +38,7 @@ export function createHandler({env,fetcher=fetch,now=Date.now}) {
       if(!access.ok)return reply(503,{error:'ai_access_unavailable'});
       if(!(await access.json()).length)return reply(403,{error:'ai_access_not_enabled'});
       const apiKey=env('GEMINI_API_KEY');
-      const model='gemini-2.5-flash-lite';
+      const model='gemini-3.1-flash-lite';
       if(req.method==='GET')return reply(200,{configured:!!apiKey,provider:'Gemini',model});
       if(!apiKey)return reply(503,{error:'ai_not_configured',message:'Add GEMINI_API_KEY in Supabase secrets to enable photo checks. You can still save items manually.'});
       if(Number(req.headers.get('content-length'))>6_000_000)return reply(413,{error:'photos_too_large'});
@@ -61,7 +61,7 @@ export function createHandler({env,fetcher=fetch,now=Date.now}) {
       if(!response.ok){
         if(response.status===429)return reply(429,{error:'provider_quota',message:'Gemini’s free quota or rate limit has been reached. Try later or enter details manually; no paid fallback is used.'});
         if([400,401,403].includes(response.status))return reply(503,{error:'provider_key_invalid',message:'Gemini rejected the key or request. Check GEMINI_API_KEY, API access and regional availability in Google AI Studio.'});
-        return reply(502,{error:'provider_unavailable',message:'Gemini could not analyze these photos. Retry later or enter details manually.'});
+        return reply(502,{error:'provider_unavailable',provider_status:response.status,message:'Gemini could not analyze these photos. Retry later or enter details manually.'});
       }
       const data=await response.json(),candidate=data.candidates?.[0];
       if(data.promptFeedback?.blockReason || (candidate && ['SAFETY','RECITATION','BLOCKLIST','PROHIBITED_CONTENT'].includes(candidate.finishReason)))return reply(422,{error:'analysis_declined',message:'These photos could not be analyzed. Enter details manually.'});
