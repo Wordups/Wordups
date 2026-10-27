@@ -7,11 +7,11 @@ assert.equal(sanitize(result,['front','label']).attributes.brand.confidence,'obs
 assert.equal(sanitize({...result,attributes:{...result.attributes,brand:{value:'Gucci',source:'front',evidence:'Looks designer'}}},['front','label']).attributes.brand.value,null);
 assert.equal(sanitize(result,['front','label']).attributes.material.confidence,'estimated');
 let modelCalls=0,lastRequest;
-const envs={SUPABASE_URL:'https://test.supabase.co',SUPABASE_ANON_KEY:'public-test',OPENAI_API_KEY:'server-test'};
+const envs={SUPABASE_URL:'https://test.supabase.co',SUPABASE_ANON_KEY:'public-test',GEMINI_API_KEY:'server-test'};
 const fetcher=async(url,options)=>{
  if(url.endsWith('/auth/v1/user'))return Response.json({id:'owner'});
  if(url.includes('/rest/v1/dc_ai_access'))return Response.json([{user_id:'owner'}]);
- modelCalls++;lastRequest=JSON.parse(options.body);return Response.json({model:'test-model',output:[{content:[{type:'output_text',text:JSON.stringify(result)}]}]});
+ modelCalls++;lastRequest=JSON.parse(options.body);return Response.json({candidates:[{finishReason:'STOP',content:{parts:[{text:JSON.stringify(result)}]}}]});
 };
 const handler=createHandler({env:k=>envs[k],fetcher});
 const request=(method,body,authorization='Bearer test',origin='https://wordups.github.io')=>new Request('https://test/analysis',{method,headers:{authorization,origin,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
@@ -19,10 +19,10 @@ assert.equal((await handler(request('GET',null,''))).status,401);
 assert.equal((await handler(request('GET',null,'Bearer test','https://evil.example'))).status,403);
 assert.equal((await handler(request('GET'))).status,200);
 const body={images:[{role:'front',data:'data:image/jpeg;base64,AAAA'},{role:'label',data:'data:image/jpeg;base64,AAAA'}]};
-let response=await handler(request('POST',body));assert.equal(response.status,200);assert.equal((await response.json()).attributes.brand.confidence,'observed');assert.equal(lastRequest.store,false);assert.equal(lastRequest.text.format.type,'json_schema');assert(!JSON.stringify(lastRequest).includes('password'));
+let response=await handler(request('POST',body));assert.equal(response.status,200);assert.equal((await response.json()).attributes.brand.confidence,'observed');assert.equal(lastRequest.generationConfig.responseMimeType,'application/json');assert.equal(lastRequest.contents[0].parts[2].inlineData.mimeType,'image/jpeg');assert(lastRequest.generationConfig.responseJsonSchema);assert(!lastRequest.model);assert(!JSON.stringify(lastRequest).includes('password'));
 assert.equal((await handler(request('POST',{images:[{role:'front',data:'https://private.example/photo'}]}))).status,400);
-delete envs.OPENAI_API_KEY;response=await handler(request('POST',body));assert.equal(response.status,503);assert.equal((await response.json()).error,'ai_not_configured');assert.equal(modelCalls,1);
+envs.OPENAI_API_KEY='must-never-fallback';delete envs.GEMINI_API_KEY;response=await handler(request('POST',body));assert.equal(response.status,503);assert.equal((await response.json()).error,'ai_not_configured');assert.equal(modelCalls,1);
 const denied=createHandler({env:k=>envs[k],fetcher:async url=>url.includes('/dc_ai_access')?Response.json([]):Response.json({id:'other'})});assert.equal((await denied(request('GET'))).status,403);
-envs.OPENAI_API_KEY='server-test';const refused=createHandler({env:k=>envs[k],fetcher:async(url,o)=>url.includes('openai.com')?Response.json({output:[{content:[{type:'refusal',refusal:'No'}]}]}):fetcher(url,o)});assert.equal((await refused(request('POST',body))).status,422);
-const noQuota=createHandler({env:k=>envs[k],fetcher:async(url,o)=>url.includes('openai.com')?Response.json({error:{code:'insufficient_quota'}},{status:429}):fetcher(url,o)});const quota=await noQuota(request('POST',body));assert.equal((await quota.json()).error,'provider_quota');
+envs.GEMINI_API_KEY='server-test';const refused=createHandler({env:k=>envs[k],fetcher:async(url,o)=>url.includes('generativelanguage.googleapis.com')?Response.json({promptFeedback:{blockReason:'SAFETY'}}):fetcher(url,o)});assert.equal((await refused(request('POST',body))).status,422);
+const noQuota=createHandler({env:k=>envs[k],fetcher:async(url,o)=>url.includes('generativelanguage.googleapis.com')?Response.json({error:{status:'RESOURCE_EXHAUSTED'}},{status:429}):fetcher(url,o)});const quota=await noQuota(request('POST',body));assert.equal((await quota.json()).error,'provider_quota');
 console.log('PASS: authenticated/allowlisted analysis, CORS, no-key fallback, image-only input, strict outputs, label evidence guard, no automatic verification, provider refusal');

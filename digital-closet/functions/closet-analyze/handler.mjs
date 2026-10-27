@@ -37,9 +37,10 @@ export function createHandler({env,fetcher=fetch,now=Date.now}) {
       const access=await fetcher(url+'/rest/v1/dc_ai_access?select=user_id&limit=1',{headers});
       if(!access.ok)return reply(503,{error:'ai_access_unavailable'});
       if(!(await access.json()).length)return reply(403,{error:'ai_access_not_enabled'});
-      const apiKey=env('OPENAI_API_KEY') || env('OPENAI_KEY');
-      if(req.method==='GET')return reply(200,{configured:!!apiKey,provider:'OpenAI',model:env('CLOSET_AI_MODEL') || 'gpt-4.1-mini',other_provider_keys:{anthropic:!!env('ANTHROPIC_API_KEY'),google:!!(env('GEMINI_API_KEY') || env('GOOGLE_API_KEY'))}});
-      if(!apiKey)return reply(503,{error:'ai_not_configured',message:'Photo analysis needs its server API key. You can still save items manually.'});
+      const apiKey=env('GEMINI_API_KEY');
+      const model='gemini-2.5-flash-lite';
+      if(req.method==='GET')return reply(200,{configured:!!apiKey,provider:'Gemini',model});
+      if(!apiKey)return reply(503,{error:'ai_not_configured',message:'Add GEMINI_API_KEY in Supabase secrets to enable photo checks. You can still save items manually.'});
       if(Number(req.headers.get('content-length'))>6_000_000)return reply(413,{error:'photos_too_large'});
       const raw=await req.text();if(raw.length>6_000_000)return reply(413,{error:'photos_too_large'});
       let body;try{body=JSON.parse(raw);}catch{return reply(400,{error:'invalid_json'});}
@@ -50,23 +51,24 @@ export function createHandler({env,fetcher=fetch,now=Date.now}) {
       if(previous.count>=10)return reply(429,{error:'analysis_rate_limit',message:'Wait a few minutes before checking more photos.'});
       previous.count++;limits.set(user.id,previous);
       if(limits.size>1000)for(const [id,l] of limits)if(time-l.time>600000)limits.delete(id);
-      const content=[{type:'input_text',text:'Analyze these garment photos. Each following image is labeled by its provided role.'}];
-      for(const p of images)content.push({type:'input_text',text:'Photo role: '+p.role},{type:'input_image',image_url:p.data,detail:'high'});
-      const response=await fetcher('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:'Bearer '+apiKey,'Content-Type':'application/json'},body:JSON.stringify({model:env('CLOSET_AI_MODEL') || 'gpt-4.1-mini',store:false,instructions:instruction,input:[{role:'user',content}],max_output_tokens:2200,text:{format:{type:'json_schema',name:'garment_suggestions',strict:true,schema}}}),signal:AbortSignal.timeout(50000)});
-      if(!response.ok){
-        let failure;try{failure=await response.json();}catch{failure={};}
-        const code=failure.error?.code || failure.error?.type;
-        if(code==='insufficient_quota' || failure.error?.type==='insufficient_quota')return reply(429,{error:'provider_quota',message:'OpenAI API billing or project quota needs attention. Add API credits or increase the project budget, then retry.'});
-        if(code==='invalid_api_key')return reply(503,{error:'provider_key_invalid',message:'The OpenAI server API key was rejected. Update the key in Supabase secrets.'});
-        if(response.status===429)return reply(429,{error:'provider_rate_limit',message:'OpenAI is rate limiting photo checks. Wait briefly and retry; check the API project limits if this continues.'});
-        return reply(502,{error:'provider_unavailable',message:'The AI provider could not analyze these photos. Retry later or enter details manually.'});
+      const parts=[{text:'Analyze these garment photos. Each image is labeled by its provided role.'}];
+      for(const p of images){
+        const [prefix,data]=p.data.split(',');
+        parts.push({text:'Photo role: '+p.role},{inlineData:{mimeType:prefix.slice(5,prefix.indexOf(';')),data}});
       }
-      const data=await response.json();if(data.status==='incomplete')return reply(502,{error:'incomplete_analysis'});
-      const parts=(data.output || []).flatMap(o=>o.content || []);
-      if(parts.some(p=>p.type==='refusal'))return reply(422,{error:'analysis_declined',message:'These photos could not be analyzed. Enter details manually.'});
-      const text=parts.filter(p=>p.type==='output_text').map(p=>p.text).join('');
+      // Gemini only: never silently fall back to a paid provider.
+      const response=await fetcher('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent',{method:'POST',headers:{'x-goog-api-key':apiKey,'Content-Type':'application/json'},body:JSON.stringify({systemInstruction:{parts:[{text:instruction}]},contents:[{role:'user',parts}],generationConfig:{maxOutputTokens:2200,responseMimeType:'application/json',responseJsonSchema:schema}}),signal:AbortSignal.timeout(50000)});
+      if(!response.ok){
+        if(response.status===429)return reply(429,{error:'provider_quota',message:'Gemini’s free quota or rate limit has been reached. Try later or enter details manually; no paid fallback is used.'});
+        if([400,401,403].includes(response.status))return reply(503,{error:'provider_key_invalid',message:'Gemini rejected the key or request. Check GEMINI_API_KEY, API access and regional availability in Google AI Studio.'});
+        return reply(502,{error:'provider_unavailable',message:'Gemini could not analyze these photos. Retry later or enter details manually.'});
+      }
+      const data=await response.json(),candidate=data.candidates?.[0];
+      if(data.promptFeedback?.blockReason || (candidate && ['SAFETY','RECITATION','BLOCKLIST','PROHIBITED_CONTENT'].includes(candidate.finishReason)))return reply(422,{error:'analysis_declined',message:'These photos could not be analyzed. Enter details manually.'});
+      if(!candidate || candidate.finishReason!=='STOP')return reply(502,{error:'incomplete_analysis'});
+      const text=(candidate.content?.parts || []).filter(p=>!p.thought && typeof p.text==='string').map(p=>p.text).join('');
       const result=sanitize(JSON.parse(text),images.map(p=>p.role));
-      return reply(200,{...result,provider:'OpenAI',model:data.model || env('CLOSET_AI_MODEL') || 'gpt-4.1-mini',analyzed_at:new Date(time).toISOString()});
+      return reply(200,{...result,provider:'Gemini',model,analyzed_at:new Date(time).toISOString()});
     }catch{return reply(502,{error:'analysis_failed',message:'The photo check did not finish. Retry or keep entering details manually.'});}
   };
 }

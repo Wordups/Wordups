@@ -1,19 +1,19 @@
 # AI photo checking
 
-`closet-analyze` is a deployed Supabase Edge Function for the published closet. It receives at most two garment photos (front and label), calls OpenAI's Responses API with a strict structured-output schema and `store: false`, and returns conservative suggestions. It never saves or edits inventory itself.
+`closet-analyze` is a deployed Supabase Edge Function for the published closet. It receives at most two garment photos (front and label), calls Gemini's Generate Content API with a structured-output schema, and returns conservative suggestions. It never saves or edits inventory itself.
 
 ## Activation
 
 In the **Midnight** project, open [Edge Function Secrets](https://supabase.com/dashboard/project/depvhpxqlpcvsuuzkwyo/functions/secrets) and add:
 
-- `OPENAI_API_KEY`: a working OpenAI API key, entered directly in Supabase, never in the browser code, repository, or chat.
-- `CLOSET_AI_MODEL` (optional): defaults to `gpt-4.1-mini`, which supports image input and structured output. The model must support both features.
+- `GEMINI_API_KEY`: a Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey), entered directly in Supabase, never in the browser code, repository, or chat.
+The model is pinned to `gemini-2.5-flash-lite`. OpenAI secrets are ignored; there is no paid-provider fallback.
 
-No provider key is committed here. API billing and model access belong to the key's OpenAI project; set usage controls there. GET on the authenticated function reports only whether a key exists, not its value. A configured key is not proof of working billing/model access; run a live photo check after setup. The existing Supabase connection is not itself an AI subscription.
+No provider key is committed here. Use a Google project on the free tier without billing enabled to avoid charges. Free quotas and regional eligibility apply; quota errors stop analysis. The app cannot determine the billing tier from a key. Google may use free-tier submissions to improve its products; see [pricing and data use](https://ai.google.dev/gemini-api/docs/pricing). GET on the authenticated function reports only whether a key exists, not its value. A configured key is not proof of working billing/model access; run a live photo check after setup. The existing Supabase connection is not itself an AI subscription.
 
 ## Using the closet
 
-For a new garment, add front/label photos and choose **Check photos with AI** on the Details step. For an existing item, choose **AI photo check** in its detail panel. A photo check sends only the selected photos to OpenAI through the authenticated backend; it does not send the whole closet, purchase details, login email, or password.
+For a new garment, add front/label photos and choose **Check photos with AI** on the Details step. For an existing item, choose **AI photo check** in its detail panel. A photo check sends only the selected photos to Gemini through the authenticated backend; it does not send the whole closet, purchase details, login email, or password.
 
 The interface lists suggestions with evidence and confidence. Use **Use / replace** for each detail you want to apply, inspect the result, then confirm and save. Existing details are never automatically overwritten. If a photo changes, accepted AI values still matching those suggestions revert to their previous values, and the stale analysis is discarded. Manual edits remain yours.
 
@@ -27,7 +27,7 @@ Accepted descriptive fields retain their AI photo evidence when saved and export
 - `public.dc_ai_access` is an owner allowlist with a read-only RLS policy for that owner and linked sub-accounts. Only the provisioned closet owner is enrolled. Other Midnight users and new signups cannot spend this AI key's budget, and clients cannot enroll themselves.
 - Origin checks allow the GitHub Pages origin and the known local preview origins. Requests accept only bounded JPEG/PNG/WebP data URIs, not remote image URLs, preventing server-side URL fetching.
 - A warm function instance limits an account to 10 analysis attempts per 10 minutes. This is a best-effort cooldown, not a durable spending cap across isolates; use provider project limits for spending controls.
-- Responses are not cached. No photos, prompts, keys or session tokens are logged by this code. `store: false` requests no saved Responses API object; it is not a promise of zero provider retention. See [OpenAI's image-input guide](https://developers.openai.com/api/docs/guides/images-vision) and [structured-output guide](https://developers.openai.com/api/docs/guides/structured-outputs).
+- Responses are not cached. No photos, prompts, keys or session tokens are logged by this code. Provider retention and data use follow Google’s terms. See [structured output documentation](https://ai.google.dev/gemini-api/docs/generate-content/structured-output).
 - Existing Claude storage integration is retained, but this AI endpoint is wired for the published Supabase-backed copy; updating GitHub does not update the Claude artifact.
 
 ## Deployment and verification

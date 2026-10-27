@@ -88,4 +88,4 @@ Open **[Digital Closet](https://wordups.github.io/WordUp/closet/)** on your phon
 
 ## AI garment photo checks
 
-The published closet now has **Check photos with AI** in the upload flow and **AI photo check** for saved items. Suggestions are reviewed and applied individually; no AI field becomes verified automatically. The authenticated Supabase endpoint requires an OpenAI API key stored only in its server secrets. See [AI activation and safeguards](functions/README.md). Until the key is configured and live-tested, photo checks report their actual connection error and manual entry remains available.
+The published closet now has **Check photos with AI** in the upload flow and **AI photo check** for saved items. Suggestions are reviewed and applied individually; no AI field becomes verified automatically. The authenticated Supabase endpoint requires a Gemini API key (`GEMINI_API_KEY`) stored only in its server secrets. See [AI activation and safeguards](functions/README.md). Until the key is configured and live-tested, photo checks report their actual connection error and manual entry remains available.
